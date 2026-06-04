@@ -280,8 +280,10 @@ const chargerVehicules = async () => {
     return;
   }
 
-  const email =
-    username === "tolier"
+  const loginClean = username.trim().toLowerCase();
+
+const email =
+  loginClean === "tolier"
       ? "tayeb.berkouk.tbt@gmail.com"
       : `${username}@oeildesauron.com`;
 
@@ -298,7 +300,7 @@ const chargerVehicules = async () => {
   const { data: profil, error: profilError } = await supabase
     .from("users")
     .select("*")
-    .eq("username", username)
+    .eq("username", loginClean)
     .single();
 
   if (profilError) {
