@@ -659,6 +659,15 @@ const email =
 
   const enregistrerUtilisateur = async () => {
     console.log("BOUTON CLIQUE");
+    console.log("VALEURS USER :", {
+  newUsername,
+  newPassword,
+  newRole,
+  newGrade,
+  newNom,
+  newPrenom,
+  newMatricule,
+});
   if (!newUsername || !newPassword || !newRole) {
     alert("Identifiant, mot de passe et rôle obligatoires.");
     return;
