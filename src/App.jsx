@@ -1450,7 +1450,11 @@ const email =
     );
   }
 
-  if (page === "admin") {
+  if (
+  page === "admin" &&
+  (currentUser?.role === "LE TÔLIER" ||
+    currentUser?.role === "ADMINISTRATEUR")
+) {
     return (
       <div className="home-page">
         <button className="back-btn" onClick={() => setPage("home")}>
