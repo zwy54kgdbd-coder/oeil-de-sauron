@@ -1698,10 +1698,13 @@ const email =
         </div>
 
         {currentUser?.role !== "MEMBRE" && (
-          <div className="menu-card" onClick={() => setPage("admin")}>
-            ⚙️
-            <span>Administration</span>
-          </div>
+          {(currentUser?.role === "LE TÔLIER" ||
+  currentUser?.role === "ADMINISTRATEUR") && (
+  <div className="menu-card" onClick={() => setPage("admin")}>
+    ⚙️
+    <span>Administration</span>
+  </div>
+)}
         )}
       </div>
     </div>
