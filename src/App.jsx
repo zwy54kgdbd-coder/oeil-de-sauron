@@ -1659,7 +1659,7 @@ const chargerVehicules = async () => {
       <div className="top-bar">
         <div className="home-title">L'ŒIL DE SAURON</div>
 
-        <div className="group-name">GROUPE 8 — {currentUser?.role}</div>
+        <div className="group-name">GROUPE 8 - {currentUser?.grade} {currentUser?.nom} {currentUser?.prenom} - {currentUser?.matricule} - {currentUser?.role}</div>
 
         <button className="logout-btn" onClick={deconnexion}>
           Déconnexion
