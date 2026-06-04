@@ -2,35 +2,7 @@ import "./App.css";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
-const initialUsers = [
-  {
-    username: "tolier",
-    password: "1234",
-    role: "LE TÔLIER",
-    grade: "Tôlier",
-    nom: "BERKOUK",
-    prenom: "Tayeb",
-    matricule: "000000",
-  },
-  {
-    username: "admin",
-    password: "1234",
-    role: "ADMINISTRATEUR",
-    grade: "Administrateur",
-    nom: "TEST",
-    prenom: "Admin",
-    matricule: "111111",
-  },
-  {
-    username: "membre",
-    password: "1234",
-    role: "MEMBRE",
-    grade: "Membre",
-    nom: "TEST",
-    prenom: "Membre",
-    matricule: "222222",
-  },
-];
+const initialUsers = [];
 
 const CREATE_NEW_IDENTITY = "__CREATE_NEW_IDENTITY__";
 
@@ -93,13 +65,14 @@ function getPhotoPrincipale(person) {
 }
 
 function App() {
+  const [username, setUsername] = useState("");
+const [password, setPassword] = useState("");
+const [session, setSession] = useState(null);
   const [logged, setLogged] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [page, setPage] = useState("home");
 
-  const [loginUsername, setLoginUsername] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-
+  
   const [users, setUsers] = useState(initialUsers);
   const [editingUser, setEditingUser] = useState(null);
 
@@ -285,30 +258,52 @@ const chargerVehicules = async () => {
     localStorage.setItem("historique", JSON.stringify([]));
   };
 
-  const connexion = () => {
-    const user = users.find(
-      (item) =>
-        item.username === loginUsername &&
-        item.password === loginPassword
-    );
+ const connexion = async () => {
+  if (!username || !password) {
+    alert("Renseigne l'identifiant et le mot de passe.");
+    return;
+  }
 
-    if (!user) {
-      alert("Identifiant ou mot de passe incorrect.");
-      return;
-    }
+  const email =
+  username === "tolier"
+    ? "tayeb.berkouk.tbt@gmail.com"
+    : `${username}@oeildesauron.com`;
 
-    setCurrentUser(user);
-    setLogged(true);
-    setPage("home");
-  };
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-  const deconnexion = () => {
-    setLogged(false);
-    setCurrentUser(null);
-    setLoginUsername("");
-    setLoginPassword("");
-    setPage("home");
-  };
+  if (error) {
+    console.log("ERREUR CONNEXION :", error);
+    alert("Identifiant ou mot de passe incorrect.");
+    return;
+  }
+
+  setSession(data.session);
+  setCurrentUser({
+    username,
+    role: username === "tolier" ? "LE TÔLIER" : "MEMBRE",
+    grade: username === "tolier" ? "Tôlier" : "Membre",
+    nom: "",
+    prenom: "",
+    matricule: "",
+  });
+
+  setLogged(true);
+  setPage("home");
+};
+
+  const deconnexion = async () => {
+  await supabase.auth.signOut();
+
+  setLogged(false);
+  setCurrentUser(null);
+  setSession(null);
+  setUsername("");
+  setPassword("");
+  setPage("home");
+};
 
   const resetIdentityForm = () => {
     setEditingId(null);
@@ -760,15 +755,15 @@ const chargerVehicules = async () => {
           <input
             type="text"
             placeholder="Utilisateur"
-            value={loginUsername}
-            onChange={(e) => setLoginUsername(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
           />
 
           <input
             type="password"
             placeholder="Mot de passe"
-            value={loginPassword}
-            onChange={(e) => setLoginPassword(e.target.value)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
 
           <button onClick={connexion}>SE CONNECTER</button>
