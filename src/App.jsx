@@ -658,6 +658,7 @@ const email =
   };
 
   const enregistrerUtilisateur = async () => {
+    console.log("BOUTON CLIQUE");
   if (!newUsername || !newPassword || !newRole) {
     alert("Identifiant, mot de passe et rôle obligatoires.");
     return;
