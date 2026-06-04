@@ -74,6 +74,22 @@ const [session, setSession] = useState(null);
 
   
   const [users, setUsers] = useState(initialUsers);
+  useEffect(() => {
+  chargerUtilisateurs();
+}, []);
+
+const chargerUtilisateurs = async () => {
+  const { data, error } = await supabase
+    .from("users")
+    .select("*");
+
+  if (error) {
+    console.log("ERREUR USERS :", error);
+    return;
+  }
+
+  setUsers(data || []);
+};
   const [editingUser, setEditingUser] = useState(null);
 
   const [newGrade, setNewGrade] = useState("");
