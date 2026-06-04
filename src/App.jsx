@@ -657,56 +657,55 @@ const email =
     setNewRole("MEMBRE");
   };
 
-  const enregistrerUtilisateur = () => {
-    if (
-      !newGrade ||
-      !newNom ||
-      !newPrenom ||
-      !newMatricule ||
-      !newUsername ||
-      !newPassword
-    ) {
-      alert("Tous les champs doivent être renseignés.");
-      return;
-    }
+  const enregistrerUtilisateur = async () => {
+  if (!newUsername || !newPassword || !newRole) {
+    alert("Identifiant, mot de passe et rôle obligatoires.");
+    return;
+  }
 
-    const identifiantExiste = users.some(
-      (user) =>
-        user.username === newUsername &&
-        user.username !== editingUser
-    );
+  const usernameClean = newUsername.trim().toLowerCase();
 
-    if (identifiantExiste) {
-      alert("Cet identifiant existe déjà.");
-      return;
-    }
+  const email =
+    usernameClean === "tolier"
+      ? "tayeb.berkouk.tbt@gmail.com"
+      : `${usernameClean}@oeildesauron.com`;
 
-    const ficheUtilisateur = {
-      username: newUsername,
-      password: newPassword,
-      role: newRole,
-      grade: newGrade,
-      nom: newNom,
-      prenom: newPrenom,
-      matricule: newMatricule,
-    };
+  const { error: authError } = await supabase.auth.signUp({
+    email,
+    password: newPassword,
+  });
 
-    const updated = editingUser
-      ? users.map((user) =>
-          user.username === editingUser ? ficheUtilisateur : user
-        )
-      : [...users, ficheUtilisateur];
+  if (authError && !editingUser) {
+    console.log("ERREUR CREATION AUTH :", authError);
+    alert("Erreur création du compte de connexion.");
+    return;
+  }
 
-    saveUsers(updated);
-
-    ajouterHistorique(
-      editingUser
-        ? `Modification utilisateur : ${newUsername}`
-        : `Création utilisateur : ${newUsername}`
-    );
-
-    resetUserForm();
+  const profil = {
+    username: usernameClean,
+    password: newPassword,
+    role: newRole,
+    grade: newGrade,
+    nom: newNom,
+    prenom: newPrenom,
+    matricule: newMatricule,
   };
+
+  const { error: profilError } = editingUser
+    ? await supabase.from("users").update(profil).eq("username", editingUser)
+    : await supabase.from("users").insert([profil]);
+
+  if (profilError) {
+    console.log("ERREUR PROFIL USER :", profilError);
+    alert("Erreur profil utilisateur.");
+    return;
+  }
+
+  await chargerUtilisateurs();
+  resetUserForm();
+
+  alert(editingUser ? "Utilisateur modifié." : "Utilisateur créé.");
+};
 
   const modifierUtilisateur = (user) => {
     if (user.role === "LE TÔLIER") {
