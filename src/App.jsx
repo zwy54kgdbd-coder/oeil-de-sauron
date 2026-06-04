@@ -281,9 +281,9 @@ const chargerVehicules = async () => {
   }
 
   const email =
-  username === "tolier"
-    ? "tayeb.berkouk.tbt@gmail.com"
-    : `${username}@oeildesauron.com`;
+    username === "tolier"
+      ? "tayeb.berkouk.tbt@gmail.com"
+      : `${username}@oeildesauron.com`;
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -291,21 +291,24 @@ const chargerVehicules = async () => {
   });
 
   if (error) {
-    console.log("ERREUR CONNEXION :", error);
     alert("Identifiant ou mot de passe incorrect.");
     return;
   }
 
-  setSession(data.session);
-  setCurrentUser({
-    username,
-    role: username === "tolier" ? "LE TÔLIER" : "MEMBRE",
-    grade: username === "tolier" ? "Tôlier" : "Membre",
-    nom: "",
-    prenom: "",
-    matricule: "",
-  });
+  const { data: profil, error: profilError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("username", username)
+    .single();
 
+  if (profilError) {
+    console.log("ERREUR PROFIL :", profilError);
+    alert("Connexion réussie, mais profil utilisateur introuvable.");
+    return;
+  }
+
+  setSession(data.session);
+  setCurrentUser(profil);
   setLogged(true);
   setPage("home");
 };
