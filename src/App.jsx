@@ -637,34 +637,50 @@ setNouvelleIdentiteTelephone("");
 
   ajouterHistorique("Suppression véhicule");
 };
-  const handlePhoto = (e) => {
-    const files = Array.from(e.target.files || []);
+  const handlePhoto = async (e) => {
+  const files = Array.from(e.target.files || []);
 
-    if (files.length === 0) return;
+  if (files.length === 0) return;
 
-    files.forEach((file) => {
-      const reader = new FileReader();
+  for (const file of files) {
+    const extension = file.name.split(".").pop() || "jpg";
+    const fileName = `identites/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${extension}`;
 
-      reader.onload = () => {
-        const nouvellePhoto = reader.result;
+    const { error } = await supabase.storage
+      .from("photos-identites")
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
 
-        setPhotos((anciennesPhotos) => {
-          const updatedPhotos = [...anciennesPhotos, nouvellePhoto];
+    if (error) {
+      console.log("ERREUR UPLOAD PHOTO :", error);
+      alert("Erreur upload photo : " + error.message);
+      continue;
+    }
 
-          if (anciennesPhotos.length === 0) {
-            setPhotoPrincipaleIndex(0);
-            setPhoto(nouvellePhoto);
-          }
+    const { data } = supabase.storage
+      .from("photos-identites")
+      .getPublicUrl(fileName);
 
-          return updatedPhotos;
-        });
-      };
+    const nouvellePhoto = data.publicUrl;
 
-      reader.readAsDataURL(file);
+    setPhotos((anciennesPhotos) => {
+      const updatedPhotos = [...anciennesPhotos, nouvellePhoto];
+
+      if (anciennesPhotos.length === 0) {
+        setPhotoPrincipaleIndex(0);
+        setPhoto(nouvellePhoto);
+      }
+
+      return updatedPhotos;
     });
+  }
 
-    e.target.value = "";
-  };
+  e.target.value = "";
+};
 
   const definirPhotoPrincipale = (index) => {
     setPhotoPrincipaleIndex(index);
