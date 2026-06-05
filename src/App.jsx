@@ -1475,7 +1475,32 @@ const handleVehiculePhoto = async (e) => {
           >
             Principale
           </button>
+<button
+  type="button"
+  className="delete-btn"
+  onClick={() => {
+    const confirmation = window.confirm("Supprimer cette photo véhicule ?");
+    if (!confirmation) return;
 
+    const updatedPhotos = vehiculePhotos.filter(
+      (_, photoIndex) => photoIndex !== index
+    );
+
+    let newIndex = vehiculePhotoPrincipaleIndex;
+
+    if (index === vehiculePhotoPrincipaleIndex) {
+      newIndex = 0;
+    } else if (index < vehiculePhotoPrincipaleIndex) {
+      newIndex = vehiculePhotoPrincipaleIndex - 1;
+    }
+
+    setVehiculePhotos(updatedPhotos);
+    setVehiculePhotoPrincipaleIndex(newIndex);
+    setVehiculePhoto(updatedPhotos[newIndex] || "");
+  }}
+>
+  Supprimer
+</button>
           {index === vehiculePhotoPrincipaleIndex && (
             <div className="person-alias">Photo principale</div>
           )}
