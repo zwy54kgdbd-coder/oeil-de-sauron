@@ -709,18 +709,29 @@ const email =
     setNewRole(user.role || "MEMBRE");
   };
 
-  const supprimerUtilisateur = (username) => {
-    const userToDelete = users.find((user) => user.username === username);
+  const supprimerUtilisateur = async (id) => {
+  try {
+    const response = await fetch("/api/delete-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id }),
+    });
 
-    if (userToDelete?.role === "LE TÔLIER") {
-      alert("Impossible de supprimer le Tôlier.");
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.error || "Erreur suppression");
       return;
     }
 
-    const updated = users.filter((user) => user.username !== username);
-    saveUsers(updated);
-    ajouterHistorique(`Suppression utilisateur : ${username}`);
-  };
+    chargerUtilisateurs();
+  } catch (err) {
+    console.error(err);
+    alert("Erreur serveur");
+  }
+};
 
   const results = [...fakePeople, ...identites].filter((person) => {
     const fullText = `
