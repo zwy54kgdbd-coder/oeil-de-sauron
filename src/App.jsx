@@ -76,8 +76,26 @@ const [session, setSession] = useState(null);
   const [users, setUsers] = useState(initialUsers);
   useEffect(() => {
   chargerUtilisateurs();
-}, []);
 
+  const channelUsers = supabase
+    .channel("users-realtime")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "users",
+      },
+      () => {
+        chargerUtilisateurs();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channelUsers);
+  };
+}, []);
 const chargerUtilisateurs = async () => {
   const { data, error } = await supabase
     .from("users")
