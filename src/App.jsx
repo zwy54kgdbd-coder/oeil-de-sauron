@@ -137,6 +137,9 @@ const chargerUtilisateurs = async () => {
   const [nouvelleIdentitePrenom, setNouvelleIdentitePrenom] = useState("");
   const [nouvelleIdentiteAlias, setNouvelleIdentiteAlias] = useState("");
   const [nouvelleIdentiteNaissance, setNouvelleIdentiteNaissance] = useState("");
+  const [nouvelleIdentiteLieuNaissance, setNouvelleIdentiteLieuNaissance] = useState("");
+const [nouvelleIdentiteDomicile, setNouvelleIdentiteDomicile] = useState("");
+const [nouvelleIdentiteTelephone, setNouvelleIdentiteTelephone] = useState("");
   const [nouvelleIdentiteSecteur, setNouvelleIdentiteSecteur] = useState("");
   const [nouvelleIdentiteFaits, setNouvelleIdentiteFaits] = useState("");
   const [nouvelleIdentiteObservations, setNouvelleIdentiteObservations] = useState("");
@@ -478,6 +481,9 @@ setTelephone(person.telephone || "");
     setNouvelleIdentitePrenom("");
     setNouvelleIdentiteAlias("");
     setNouvelleIdentiteNaissance("");
+    setNouvelleIdentiteLieuNaissance("");
+setNouvelleIdentiteDomicile("");
+setNouvelleIdentiteTelephone("");
     setNouvelleIdentiteSecteur("");
     setNouvelleIdentiteFaits("");
     setNouvelleIdentiteObservations("");
@@ -524,6 +530,9 @@ setTelephone(person.telephone || "");
       prenom: nouvelleIdentitePrenom,
       alias: nouvelleIdentiteAlias,
       naissance: nouvelleIdentiteNaissance,
+      lieu_naissance: nouvelleIdentiteLieuNaissance,
+domicile: nouvelleIdentiteDomicile,
+telephone: nouvelleIdentiteTelephone,
       secteur: nouvelleIdentiteSecteur,
       faits: nouvelleIdentiteFaits,
       vehicule: "",
@@ -1214,7 +1223,26 @@ setTelephone(person.telephone || "");
                 value={nouvelleIdentiteNaissance}
                 onChange={(e) => setNouvelleIdentiteNaissance(e.target.value)}
               />
+<input
+  type="text"
+  placeholder="Lieu de naissance"
+  value={nouvelleIdentiteLieuNaissance}
+  onChange={(e) => setNouvelleIdentiteLieuNaissance(e.target.value)}
+/>
 
+<input
+  type="text"
+  placeholder="Domicile"
+  value={nouvelleIdentiteDomicile}
+  onChange={(e) => setNouvelleIdentiteDomicile(e.target.value)}
+/>
+
+<input
+  type="tel"
+  placeholder="Téléphone"
+  value={nouvelleIdentiteTelephone}
+  onChange={(e) => setNouvelleIdentiteTelephone(e.target.value)}
+/>
               <input
                 type="text"
                 placeholder="Secteur habituel"
