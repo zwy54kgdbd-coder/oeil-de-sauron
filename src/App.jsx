@@ -998,18 +998,7 @@ setNouvelleIdentiteTelephone("");
     "👤"
   )}
 </div>
-              <div className="avatar">
-                {getPhotoPrincipale(person) ? (
-                  <img
-                    src={getPhotoPrincipale(person)}
-                    alt="photo"
-                    className="person-photo clickable-photo"
-                    onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
-                  />
-                ) : (
-                  "👤"
-                )}
-              </div>
+              
 
               <div className="person-info">
                 <div className="person-name">
@@ -1401,13 +1390,13 @@ setNouvelleIdentiteTelephone("");
         <h2 className="section-title">Individus enregistrés</h2>
 
         <div className="results-list">
-          {identites.length === 0 && (
+          {!search && identites.length === 0 && (
             <div className="admin-card">
               Aucune identité enregistrée.
             </div>
           )}
 
-          {identites.map((person) => (
+          {!search && identites.map((person) => (
             <div className="person-card" key={person.id}>
               <div className="avatar">
   {getPhotoPrincipale(person) ? (
@@ -1421,18 +1410,7 @@ setNouvelleIdentiteTelephone("");
     "👤"
   )}
 </div>
-              <div className="avatar">
-                {getPhotoPrincipale(person) ? (
-                  <img
-                    src={getPhotoPrincipale(person)}
-                    alt="photo"
-                    className="person-photo clickable-photo"
-                    onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
-                  />
-                ) : (
-                  "👤"
-                )}
-              </div>
+              
 
               <div className="person-info">
                 <div className="person-name">
