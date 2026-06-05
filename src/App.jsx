@@ -60,8 +60,10 @@ function getPhotos(person) {
 
 function getPhotoPrincipale(person) {
   const photos = getPhotos(person);
-  const index = person.photoPrincipaleIndex || 0;
-  return photos[index] || photos[0] || "";
+  const index =
+    person.photo_principale_index ?? person.photoPrincipaleIndex ?? 0;
+
+  return photos[index] || photos[0] || person.photo || "";
 }
 
 function App() {
@@ -388,6 +390,8 @@ telephone,
     vehicule: "",
     observations,
     photo: photos[photoPrincipaleIndex] || photo || "",
+    photos,
+photo_principale_index: photoPrincipaleIndex,
   };
 
   let result;
@@ -443,7 +447,8 @@ setTelephone(person.telephone || "");
     setObservations(person.observations || "");
 
     const loadedPhotos = getPhotos(person);
-    const loadedIndex = person.photoPrincipaleIndex || 0;
+    const loadedIndex =
+  person.photo_principale_index ?? person.photoPrincipaleIndex ?? 0;
 
     setPhotos(loadedPhotos);
     setPhotoPrincipaleIndex(loadedIndex);
