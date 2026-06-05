@@ -933,18 +933,7 @@ setNouvelleIdentiteTelephone("");
 
           {results.map((person) => (
             <div className="person-card" key={person.id}>
-              <div className="avatar">
-                {getPhotoPrincipale(person) ? (
-                  <img
-  src={getPhotoPrincipale(person)}
-  alt="photo"
-  className="person-photo"
-  onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
-/>
-                ) : (
-                  "👤"
-                )}
-              </div>
+              
 
               <div className="person-info">
                 <div className="person-name">
@@ -1325,18 +1314,7 @@ setNouvelleIdentiteTelephone("");
 
           {identites.map((person) => (
             <div className="person-card" key={person.id}>
-              <div className="avatar">
-                {getPhotoPrincipale(person) ? (
-                  <img
-  src={getPhotoPrincipale(person)}
-  alt="photo"
-  className="person-photo"
-  onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
-/>
-                ) : (
-                  "👤"
-                )}
-              </div>
+              
 
               <div className="person-info">
                 <div className="person-name">
@@ -1491,46 +1469,44 @@ setNouvelleIdentiteTelephone("");
           />
 
           {photos.length > 0 && (
-            <div className="photos-zone">
-              <div className="main-photo-box">
-                <img
-                  src={photos[photoPrincipaleIndex] || photos[0]}
-                  alt="photo principale"
-                  className="photo-preview"
-                />
-                <div className="person-alias">Photo principale</div>
-              </div>
+  <div className="photos-zone">
+    <div className="photos-grid">
+      {photos.map((item, index) => (
+        <div className="photo-item" key={index}>
+          <img
+            src={item}
+            alt={`photo ${index + 1}`}
+            className="person-photo"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPhotoZoom(item);
+            }}
+          />
 
-              <div className="photos-grid">
-                {photos.map((item, index) => (
-                  <div className="photo-item" key={index}>
-                    <img
-  src={photos[photoPrincipaleIndex] || photos[0]}
-  alt="photo principale"
-  className="photo-preview"
-  onClick={() => setPhotoZoom(photos[photoPrincipaleIndex] || photos[0])}
-/>
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={() => definirPhotoPrincipale(index)}
+          >
+            Principale
+          </button>
 
-                    <button
-                      type="button"
-                      className="edit-btn"
-                      onClick={() => definirPhotoPrincipale(index)}
-                    >
-                      Principale
-                    </button>
+          <button
+            type="button"
+            className="delete-btn"
+            onClick={() => supprimerPhoto(index)}
+          >
+            Supprimer
+          </button>
 
-                    <button
-                      type="button"
-                      className="delete-btn"
-                      onClick={() => supprimerPhoto(index)}
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {index === photoPrincipaleIndex && (
+            <div className="person-alias">Photo principale</div>
           )}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
           <div className="photo-buttons">
             <label className="photo-btn">
@@ -1560,6 +1536,18 @@ setNouvelleIdentiteTelephone("");
             {editingId ? "Modifier" : "Enregistrer"}
           </button>
         </div>
+        {photoZoom && (
+  <div
+    className="photo-zoom-overlay"
+    onClick={() => setPhotoZoom("")}
+  >
+    <img
+      src={photoZoom}
+      alt="zoom"
+      className="photo-zoom-img"
+    />
+  </div>
+)}
       </div>
     );
   }
