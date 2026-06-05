@@ -615,6 +615,9 @@ setVehiculePhotoPrincipaleIndex(0);
     faits: vehiculeFaits,
     fuite: vehiculeFuite,
     observations: vehiculeObservations,
+    photo: vehiculePhotos[vehiculePhotoPrincipaleIndex] || vehiculePhoto || "",
+photos: vehiculePhotos,
+photo_principale_index: vehiculePhotoPrincipaleIndex,
     identite:
       finalIndividuId && finalIndividuId !== CREATE_NEW_IDENTITY
         ? String(finalIndividuId)
@@ -664,6 +667,9 @@ setVehiculePhotoPrincipaleIndex(0);
     setVehiculeFaits(item.faits || "");
     setVehiculeFuite(item.fuite || "");
     setVehiculeObservations(item.observations || "");
+    setVehiculePhoto(item.photo || "");
+setVehiculePhotos(item.photos || []);
+setVehiculePhotoPrincipaleIndex(item.photo_principale_index || 0);
     setVehiculeIndividuId(item.individuId || "");
     setPage("addVehicule");
   };
@@ -975,7 +981,18 @@ const handleVehiculePhoto = async (e) => {
         <div className="results-list">
           {vehiculeResults.map((item) => (
             <div className="person-card" key={item.id}>
-              <div className="avatar">🚗</div>
+              <div className="avatar">
+  {item.photo ? (
+    <img
+      src={item.photo}
+      alt="véhicule"
+      className="person-photo"
+      onClick={() => setPhotoZoom(item.photo)}
+    />
+  ) : (
+    "🚗"
+  )}
+</div>
 
               <div className="person-info">
                 <div className="person-name">
@@ -1200,7 +1217,18 @@ const handleVehiculePhoto = async (e) => {
 
           {vehicules.map((item) => (
             <div className="person-card" key={item.id}>
-              <div className="avatar">🚗</div>
+              <div className="avatar">
+  {item.photo ? (
+    <img
+      src={item.photo}
+      alt="véhicule"
+      className="person-photo"
+      onClick={() => setPhotoZoom(item.photo)}
+    />
+  ) : (
+    "🚗"
+  )}
+</div>
 
               <div className="person-info">
                 <div className="person-name">{getNomVehicule(item)}</div>
