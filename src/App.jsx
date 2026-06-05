@@ -644,6 +644,7 @@ setNouvelleIdentiteTelephone("");
 
   for (const file of files) {
     const extension = file.name.split(".").pop() || "jpg";
+
     const fileName = `identites/${Date.now()}-${Math.random()
       .toString(36)
       .slice(2)}.${extension}`;
