@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       : `${usernameClean}@oeildesauron.com`;
 
   const { error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email,
+    email: `${usernameClean}_${Date.now()}@oeildesauron.com`,
     password,
     email_confirm: true,
   });
