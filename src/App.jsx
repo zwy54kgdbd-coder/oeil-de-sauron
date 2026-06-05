@@ -658,63 +658,39 @@ const email =
   };
 
   const enregistrerUtilisateur = async () => {
-    console.log("BOUTON CLIQUE");
-    console.log("VALEURS USER :", {
-  newUsername,
-  newPassword,
-  newRole,
-  newGrade,
-  newNom,
-  newPrenom,
-  newMatricule,
-});
   if (!newUsername || !newPassword || !newRole) {
     alert("Identifiant, mot de passe et rôle obligatoires.");
     return;
   }
 
-  const usernameClean = newUsername.trim().toLowerCase();
-
-  const email =
-    usernameClean === "tolier"
-      ? "tayeb.berkouk.tbt@gmail.com"
-      : `${usernameClean}@oeildesauron.com`;
-
-  const { error: authError } = await supabase.auth.signUp({
-    email,
-    password: newPassword,
+  const response = await fetch("/api/create-user", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      username: newUsername,
+      password: newPassword,
+      role: newRole,
+      grade: newGrade,
+      nom: newNom,
+      prenom: newPrenom,
+      matricule: newMatricule,
+    }),
   });
 
-  if (authError && !editingUser) {
-    console.log("ERREUR CREATION AUTH :", authError);
-    alert("Erreur création du compte de connexion.");
-    return;
-  }
+  const result = await response.json();
 
-  const profil = {
-    username: usernameClean,
-    password: newPassword,
-    role: newRole,
-    grade: newGrade,
-    nom: newNom,
-    prenom: newPrenom,
-    matricule: newMatricule,
-  };
-
-  const { error: profilError } = editingUser
-    ? await supabase.from("users").update(profil).eq("username", editingUser)
-    : await supabase.from("users").insert([profil]);
-
-  if (profilError) {
-    console.log("ERREUR PROFIL USER :", profilError);
-    alert("Erreur profil utilisateur.");
+  if (!response.ok) {
+    console.log("ERREUR API CREATE USER :", result);
+    alert("Erreur création utilisateur : " + result.error);
     return;
   }
 
   await chargerUtilisateurs();
   resetUserForm();
 
-  alert(editingUser ? "Utilisateur modifié." : "Utilisateur créé.");
+  alert("Utilisateur créé.");
 };
 
   const modifierUtilisateur = (user) => {
