@@ -722,15 +722,15 @@ const email =
     const data = await response.json();
 
     if (!response.ok) {
-      alert(data.error || "Erreur suppression");
+      alert("Erreur suppression : " + (data.error || JSON.stringify(data)));
       return;
     }
 
     chargerUtilisateurs();
   } catch (err) {
-    console.error(err);
-    alert("Erreur serveur");
-  }
+  console.error("ERREUR DELETE USER :", err);
+  alert("Erreur serveur : " + err.message);
+}
 };
 
   const results = [...fakePeople, ...identites].filter((person) => {
