@@ -710,28 +710,36 @@ const email =
   };
 
   const supprimerUtilisateur = async (username) => {
-  try {
-    const response = await fetch("/api/delete-user", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username }),
-    });
-
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : {};
-
-    if (!response.ok) {
-      alert(data.error || "Erreur suppression utilisateur");
-      return;
-    }
-
-    await chargerUtilisateurs();
-  } catch (err) {
-    console.error("ERREUR SUPPRESSION :", err);
-    alert("Erreur serveur suppression");
+  if (!username) {
+    alert("Identifiant utilisateur manquant.");
+    return;
   }
+
+  if (username === "tolier") {
+    alert("Impossible de supprimer le Tôlier.");
+    return;
+  }
+
+  const confirmation = window.confirm(
+    `Supprimer définitivement l'utilisateur ${username} ?`
+  );
+
+  if (!confirmation) return;
+
+  const { error } = await supabase
+    .from("users")
+    .delete()
+    .eq("username", username);
+
+  if (error) {
+    console.error("ERREUR SUPPRESSION SUPABASE :", error);
+    alert("Erreur suppression Supabase : " + error.message);
+    return;
+  }
+
+  await chargerUtilisateurs();
+
+  alert("Utilisateur supprimé.");
 };
 
   const results = [...fakePeople, ...identites].filter((person) => {
