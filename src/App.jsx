@@ -1288,6 +1288,10 @@ const handleVehiculePhoto = async (e) => {
             </div>
           ))}
         </div>
+                <PhotoZoomOverlay
+          photoZoom={photoZoom}
+          onClose={() => setPhotoZoom("")}
+        />
       </div>
     );
   }
