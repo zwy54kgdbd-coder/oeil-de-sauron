@@ -526,19 +526,19 @@ setNouvelleIdentiteTelephone("");
     }
 
     const nouvelleIdentite = {
-      nom: nouvelleIdentiteNom,
-      prenom: nouvelleIdentitePrenom,
-      alias: nouvelleIdentiteAlias,
-      naissance: nouvelleIdentiteNaissance,
-      lieu_naissance: nouvelleIdentiteLieuNaissance,
-domicile: nouvelleIdentiteDomicile,
-telephone: nouvelleIdentiteTelephone,
-      secteur: nouvelleIdentiteSecteur,
-      faits: nouvelleIdentiteFaits,
-      vehicule: "",
-      observations: nouvelleIdentiteObservations,
-      photo: "",
-    };
+  nom: nouvelleIdentiteNom,
+  prenom: nouvelleIdentitePrenom,
+  alias: nouvelleIdentiteAlias,
+  naissance: nouvelleIdentiteNaissance,
+  lieu_naissance: nouvelleIdentiteLieuNaissance,
+  domicile: nouvelleIdentiteDomicile,
+  telephone: nouvelleIdentiteTelephone,
+  secteur: nouvelleIdentiteSecteur,
+  faits: nouvelleIdentiteFaits,
+  vehicule: "",
+  observations: nouvelleIdentiteObservations,
+  photo: "",
+};
 
     const { data, error } = await supabase
       .from("identites")
@@ -547,7 +547,7 @@ telephone: nouvelleIdentiteTelephone,
 
     if (error) {
       console.log("ERREUR CREATION IDENTITE DEPUIS VEHICULE :", error);
-      alert("Erreur lors de la création de l'identité liée.");
+      alert("Erreur création identité liée : " + error.message);
       return;
     }
 
