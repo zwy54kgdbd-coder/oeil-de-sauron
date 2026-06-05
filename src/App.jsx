@@ -162,6 +162,7 @@ const [telephone, setTelephone] = useState("");
   const [photo, setPhoto] = useState("");
   const [photos, setPhotos] = useState([]);
   const [photoPrincipaleIndex, setPhotoPrincipaleIndex] = useState(0);
+  const [photoZoom, setPhotoZoom] = useState("");
     useEffect(() => {
   chargerIdentites();
   chargerVehicules();
@@ -689,20 +690,24 @@ setNouvelleIdentiteTelephone("");
   };
 
   const supprimerPhoto = (index) => {
-    const updatedPhotos = photos.filter((_, photoIndex) => photoIndex !== index);
+  const confirmation = window.confirm("Supprimer cette photo ?");
 
-    let newPrincipalIndex = photoPrincipaleIndex;
+  if (!confirmation) return;
 
-    if (index === photoPrincipaleIndex) {
-      newPrincipalIndex = 0;
-    } else if (index < photoPrincipaleIndex) {
-      newPrincipalIndex = photoPrincipaleIndex - 1;
-    }
+  const updatedPhotos = photos.filter((_, photoIndex) => photoIndex !== index);
 
-    setPhotos(updatedPhotos);
-    setPhotoPrincipaleIndex(newPrincipalIndex);
-    setPhoto(updatedPhotos[newPrincipalIndex] || "");
-  };
+  let newPrincipalIndex = photoPrincipaleIndex;
+
+  if (index === photoPrincipaleIndex) {
+    newPrincipalIndex = 0;
+  } else if (index < photoPrincipaleIndex) {
+    newPrincipalIndex = photoPrincipaleIndex - 1;
+  }
+
+  setPhotos(updatedPhotos);
+  setPhotoPrincipaleIndex(newPrincipalIndex);
+  setPhoto(updatedPhotos[newPrincipalIndex] || "");
+};
 
   const resetUserForm = () => {
     setEditingUser(null);
@@ -1493,10 +1498,11 @@ setNouvelleIdentiteTelephone("");
                 {photos.map((item, index) => (
                   <div className="photo-item" key={index}>
                     <img
-                      src={item}
-                      alt={`photo ${index + 1}`}
-                      className="person-photo"
-                    />
+  src={item}
+  alt={`photo ${index + 1}`}
+  className="person-photo"
+  onClick={() => setPhotoZoom(item)}
+/>
 
                     <button
                       type="button"
@@ -1816,6 +1822,11 @@ setNouvelleIdentiteTelephone("");
 )}
         
       </div>
+      {photoZoom && (
+  <div className="photo-zoom-overlay" onClick={() => setPhotoZoom("")}>
+    <img src={photoZoom} alt="zoom" className="photo-zoom-img" />
+  </div>
+)}
     </div>
   );
 }
