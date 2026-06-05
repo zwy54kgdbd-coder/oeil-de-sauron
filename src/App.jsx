@@ -149,6 +149,9 @@ const chargerUtilisateurs = async () => {
   const [prenom, setPrenom] = useState("");
   const [alias, setAlias] = useState("");
   const [naissance, setNaissance] = useState("");
+  const [lieuNaissance, setLieuNaissance] = useState("");
+const [domicile, setDomicile] = useState("");
+const [telephone, setTelephone] = useState("");
   const [secteur, setSecteur] = useState("");
   const [faits, setFaits] = useState("");
   const [vehicule, setVehicule] = useState("");
@@ -350,6 +353,9 @@ const email =
     setPrenom("");
     setAlias("");
     setNaissance("");
+    setLieuNaissance("");
+setDomicile("");
+setTelephone("");
     setSecteur("");
     setFaits("");
     setVehicule("");
@@ -370,6 +376,9 @@ const email =
     prenom,
     alias,
     naissance,
+    lieu_naissance: lieuNaissance,
+domicile,
+telephone,
     secteur,
     faits,
     vehicule: "",
@@ -421,6 +430,9 @@ const email =
     setPrenom(person.prenom || "");
     setAlias(person.alias || "");
     setNaissance(person.naissance || "");
+    setLieuNaissance(person.lieu_naissance || "");
+setDomicile(person.domicile || "");
+setTelephone(person.telephone || "");
     setSecteur(person.secteur || "");
     setFaits(person.faits || "");
     setVehicule("");
@@ -1365,7 +1377,26 @@ const email =
             value={naissance}
             onChange={(e) => setNaissance(e.target.value)}
           />
+<input
+  type="text"
+  placeholder="Lieu de naissance"
+  value={lieuNaissance}
+  onChange={(e) => setLieuNaissance(e.target.value)}
+/>
 
+<input
+  type="text"
+  placeholder="Domicile"
+  value={domicile}
+  onChange={(e) => setDomicile(e.target.value)}
+/>
+
+<input
+  type="tel"
+  placeholder="Téléphone"
+  value={telephone}
+  onChange={(e) => setTelephone(e.target.value)}
+/>
           <input
             type="text"
             placeholder="Secteur habituel"
