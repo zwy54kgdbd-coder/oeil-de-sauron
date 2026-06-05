@@ -433,3 +433,45 @@ button {
   max-height: 95vh;
   object-fit: contain;
 }
+@media (max-width: 768px) {
+
+  .app-container,
+  .main-container,
+  .page-container {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+
+  .person-card,
+  .admin-card,
+  .vehicle-card {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .person-photo,
+  .photo-preview {
+    max-width: 100%;
+    height: auto;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 16px;
+  }
+
+  .photo-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .photos-grid {
+    grid-template-columns: 1fr;
+  }
+}
