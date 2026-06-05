@@ -170,7 +170,9 @@ const chargerUtilisateurs = async () => {
   const [vehiculeFuite, setVehiculeFuite] = useState("");
   const [vehiculeObservations, setVehiculeObservations] = useState("");
   const [vehiculeIndividuId, setVehiculeIndividuId] = useState("");
-
+const [vehiculePhoto, setVehiculePhoto] = useState("");
+const [vehiculePhotos, setVehiculePhotos] = useState([]);
+const [vehiculePhotoPrincipaleIndex, setVehiculePhotoPrincipaleIndex] = useState(0);
   const [nouvelleIdentiteNom, setNouvelleIdentiteNom] = useState("");
   const [nouvelleIdentitePrenom, setNouvelleIdentitePrenom] = useState("");
   const [nouvelleIdentiteAlias, setNouvelleIdentiteAlias] = useState("");
@@ -545,6 +547,9 @@ setNouvelleIdentiteTelephone("");
     setVehiculeFuite("");
     setVehiculeObservations("");
     setVehiculeIndividuId("");
+    setVehiculePhoto("");
+setVehiculePhotos([]);
+setVehiculePhotoPrincipaleIndex(0);
     resetNouvelleIdentiteDepuisVehicule();
   };
 
@@ -727,7 +732,50 @@ setNouvelleIdentiteTelephone("");
 
   e.target.value = "";
 };
+const handleVehiculePhoto = async (e) => {
+  const files = Array.from(e.target.files || []);
 
+  if (files.length === 0) return;
+
+  for (const file of files) {
+    const extension = file.name.split(".").pop() || "jpg";
+
+    const fileName = `vehicules/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${extension}`;
+
+    const { error } = await supabase.storage
+      .from("photos-identites")
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      alert("Erreur upload photo véhicule : " + error.message);
+      continue;
+    }
+
+    const { data } = supabase.storage
+      .from("photos-identites")
+      .getPublicUrl(fileName);
+
+    const nouvellePhoto = data.publicUrl;
+
+    setVehiculePhotos((anciennesPhotos) => {
+      const updatedPhotos = [...anciennesPhotos, nouvellePhoto];
+
+      if (anciennesPhotos.length === 0) {
+        setVehiculePhotoPrincipaleIndex(0);
+        setVehiculePhoto(nouvellePhoto);
+      }
+
+      return updatedPhotos;
+    });
+  }
+
+  e.target.value = "";
+};
   const definirPhotoPrincipale = (index) => {
     setPhotoPrincipaleIndex(index);
     setPhoto(photos[index] || "");
@@ -1371,7 +1419,58 @@ setNouvelleIdentiteTelephone("");
             value={vehiculeObservations}
             onChange={(e) => setVehiculeObservations(e.target.value)}
           />
+{vehiculePhotos.length > 0 && (
+  <div className="photos-zone">
+    <div className="photos-grid">
+      {vehiculePhotos.map((item, index) => (
+        <div className="photo-item" key={index}>
+          <img
+            src={item}
+            alt={`photo ${index + 1}`}
+            className="person-photo"
+            onClick={() => setPhotoZoom(item)}
+          />
 
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={() => setVehiculePhotoPrincipaleIndex(index)}
+          >
+            Principale
+          </button>
+
+          {index === vehiculePhotoPrincipaleIndex && (
+            <div className="person-alias">Photo principale</div>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+<div className="photo-buttons">
+  <label className="photo-btn">
+    📷 Prendre une photo
+    <input
+      type="file"
+      accept="image/*"
+      capture="environment"
+      hidden
+      onChange={handleVehiculePhoto}
+    />
+  </label>
+
+  <label className="photo-btn">
+    🖼️ Galerie photo
+    <input
+      type="file"
+      accept="image/*"
+      multiple
+      hidden
+      onChange={handleVehiculePhoto}
+    />
+  </label>
+</div>
           <button className="save-btn" onClick={enregistrerVehicule}>
             {editingVehiculeId ? "Modifier" : "Enregistrer"}
           </button>
