@@ -277,17 +277,22 @@ const chargerVehicules = async () => {
   }
 
   const vehiculesFormates = (data || []).map((item) => ({
-    id: item.id,
-    marque: item.marque || "",
-    modele: item.modele || "",
-    couleur: item.couleur || "",
-    plaque: item.immatriculation || "",
-    secteur: item.secteur || "",
-    faits: item.faits || "",
-    fuite: item.fuite || "",
-    observations: item.observations || "",
-    individuId: item.identite || "",
-  }));
+  id: item.id,
+  marque: item.marque || "",
+  modele: item.modele || "",
+  couleur: item.couleur || "",
+  plaque: item.immatriculation || "",
+  secteur: item.secteur || "",
+  faits: item.faits || "",
+  fuite: item.fuite || "",
+  observations: item.observations || "",
+  individuId: item.identite || "",
+
+  photo: item.photo || "",
+  photos: item.photos || [],
+  photo_principale_index:
+    item.photo_principale_index || 0,
+}));
 
   setVehicules(vehiculesFormates);
 };
