@@ -709,28 +709,29 @@ const email =
     setNewRole(user.role || "MEMBRE");
   };
 
-  const supprimerUtilisateur = async (id) => {
+  const supprimerUtilisateur = async (username) => {
   try {
     const response = await fetch("/api/delete-user", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ username }),
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
 
     if (!response.ok) {
-      alert("Erreur suppression : " + (data.error || JSON.stringify(data)));
+      alert(data.error || "Erreur suppression utilisateur");
       return;
     }
 
-    chargerUtilisateurs();
+    await chargerUtilisateurs();
   } catch (err) {
-  console.error("ERREUR DELETE USER :", err);
-  alert("Erreur serveur : " + err.message);
-}
+    console.error("ERREUR SUPPRESSION :", err);
+    alert("Erreur serveur suppression");
+  }
 };
 
   const results = [...fakePeople, ...identites].filter((person) => {
