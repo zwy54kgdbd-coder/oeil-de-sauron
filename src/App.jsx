@@ -436,9 +436,10 @@ const email =
   };
 
   const supprimerIdentite = async (id) => {
-  const confirmation = confirm("Confirmer la suppression de cette identité ?");
-
-  if (!confirmation) return;
+  if (String(id).startsWith("fake")) {
+    alert("Fiche test non supprimable.");
+    return;
+  }
 
   const { error } = await supabase
     .from("identites")
@@ -446,12 +447,9 @@ const email =
     .eq("id", id);
 
   if (error) {
-    console.log("ERREUR SUPPRESSION IDENTITE :", error);
-    alert("Erreur lors de la suppression de l'identité.");
+    alert("Erreur suppression identité : " + error.message);
     return;
   }
-
-  await chargerIdentites();
 
   ajouterHistorique("Suppression identité");
 };
@@ -594,26 +592,18 @@ const email =
   };
 
   const supprimerVehicule = async (id) => {
-  const confirmation = confirm("Confirmer la suppression du véhicule ?");
-
-  if (!confirmation) return;
-
   const { error } = await supabase
     .from("vehicules")
     .delete()
     .eq("id", id);
 
   if (error) {
-    console.log("ERREUR SUPPRESSION VEHICULE :", error);
-    alert("Erreur lors de la suppression du véhicule.");
+    alert("Erreur suppression véhicule : " + error.message);
     return;
   }
 
-  await chargerVehicules();
-
   ajouterHistorique("Suppression véhicule");
 };
-
   const handlePhoto = (e) => {
     const files = Array.from(e.target.files || []);
 
