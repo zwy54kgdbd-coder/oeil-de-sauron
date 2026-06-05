@@ -441,6 +441,12 @@ const email =
     return;
   }
 
+  const confirmation = window.confirm(
+    "Confirmer la suppression de cette identité ?"
+  );
+
+  if (!confirmation) return;
+
   const { error } = await supabase
     .from("identites")
     .delete()
@@ -592,6 +598,12 @@ const email =
   };
 
   const supprimerVehicule = async (id) => {
+  const confirmation = window.confirm(
+    "Confirmer la suppression de ce véhicule ?"
+  );
+
+  if (!confirmation) return;
+
   const { error } = await supabase
     .from("vehicules")
     .delete()
