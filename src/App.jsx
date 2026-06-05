@@ -52,10 +52,31 @@ function getNomIdentite(identites, individuId) {
   return `${person.nom || ""} ${person.prenom || ""}`.trim();
 }
 
+function getIdentite(identites, individuId) {
+  return identites.find((item) => String(item.id) === String(individuId));
+}
+
+function uniquePhotos(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function normalizePhotos(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+
+  const parsed = safeParseArray(value);
+  return parsed.length > 0 ? parsed : [value];
+}
+
 function getPhotos(person) {
-  if (Array.isArray(person.photos)) return person.photos;
-  if (person.photo) return [person.photo];
-  return [];
+  return uniquePhotos([
+    ...normalizePhotos(person.photos),
+    person.photo,
+    person.photo_url,
+    person.photoUrl,
+    person.image,
+    person.image_url,
+  ]);
 }
 
 function getPhotoPrincipale(person) {
@@ -64,6 +85,21 @@ function getPhotoPrincipale(person) {
     person.photo_principale_index ?? person.photoPrincipaleIndex ?? 0;
 
   return photos[index] || photos[0] || person.photo || "";
+}
+
+function PhotoZoomOverlay({ photoZoom, onClose }) {
+  if (!photoZoom) return null;
+
+  return (
+    <div className="photo-zoom-overlay" onClick={onClose}>
+      <img
+        src={photoZoom}
+        alt="zoom"
+        className="photo-zoom-img"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
 }
 
 function App() {
@@ -377,6 +413,9 @@ setTelephone("");
     return;
   }
 
+  const photoPrincipale = photos[photoPrincipaleIndex] || photo || "";
+  const photosUniques = uniquePhotos([photoPrincipale, ...photos]);
+
   const fiche = {
     nom,
     prenom,
@@ -389,9 +428,9 @@ telephone,
     faits,
     vehicule: "",
     observations,
-    photo: photos[photoPrincipaleIndex] || photo || "",
-    photos,
-photo_principale_index: photoPrincipaleIndex,
+    photo: photoPrincipale,
+    photos: photosUniques,
+	photo_principale_index: photoPrincipale ? 0 : photoPrincipaleIndex,
   };
 
   let result;
@@ -905,8 +944,22 @@ setNouvelleIdentiteTelephone("");
                 )}
 
                 {item.individuId && (
-                  <div className="person-alias">
-                    Identité liée : {getNomIdentite(identites, item.individuId)}
+                  <div className="linked-identity">
+                    {getPhotoPrincipale(getIdentite(identites, item.individuId) || {}) && (
+                      <img
+                        src={getPhotoPrincipale(getIdentite(identites, item.individuId) || {})}
+                        alt="photo identité liée"
+                        className="linked-identity-photo clickable-photo"
+                        onClick={() =>
+                          setPhotoZoom(
+                            getPhotoPrincipale(getIdentite(identites, item.individuId) || {})
+                          )
+                        }
+                      />
+                    )}
+                    <span className="person-alias">
+                      Identité liée : {getNomIdentite(identites, item.individuId)}
+                    </span>
                   </div>
                 )}
 
@@ -933,7 +986,30 @@ setNouvelleIdentiteTelephone("");
 
           {results.map((person) => (
             <div className="person-card" key={person.id}>
-              
+              <div className="avatar">
+  {getPhotoPrincipale(person) ? (
+    <img
+      src={getPhotoPrincipale(person)}
+      alt="photo"
+      className="person-photo"
+      onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+    />
+  ) : (
+    "👤"
+  )}
+</div>
+              <div className="avatar">
+                {getPhotoPrincipale(person) ? (
+                  <img
+                    src={getPhotoPrincipale(person)}
+                    alt="photo"
+                    className="person-photo clickable-photo"
+                    onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+                  />
+                ) : (
+                  "👤"
+                )}
+              </div>
 
               <div className="person-info">
                 <div className="person-name">
@@ -983,6 +1059,11 @@ setNouvelleIdentiteTelephone("");
             </div>
           ))}
         </div>
+
+        <PhotoZoomOverlay
+          photoZoom={photoZoom}
+          onClose={() => setPhotoZoom("")}
+        />
       </div>
     );
   }
@@ -1097,8 +1178,22 @@ setNouvelleIdentiteTelephone("");
                 )}
 
                 {item.individuId && (
-                  <div className="person-alias">
-                    Identité liée : {getNomIdentite(identites, item.individuId)}
+                  <div className="linked-identity">
+                    {getPhotoPrincipale(getIdentite(identites, item.individuId) || {}) && (
+                      <img
+                        src={getPhotoPrincipale(getIdentite(identites, item.individuId) || {})}
+                        alt="photo identité liée"
+                        className="linked-identity-photo clickable-photo"
+                        onClick={() =>
+                          setPhotoZoom(
+                            getPhotoPrincipale(getIdentite(identites, item.individuId) || {})
+                          )
+                        }
+                      />
+                    )}
+                    <span className="person-alias">
+                      Identité liée : {getNomIdentite(identites, item.individuId)}
+                    </span>
                   </div>
                 )}
 
@@ -1314,7 +1409,30 @@ setNouvelleIdentiteTelephone("");
 
           {identites.map((person) => (
             <div className="person-card" key={person.id}>
-              
+              <div className="avatar">
+  {getPhotoPrincipale(person) ? (
+    <img
+      src={getPhotoPrincipale(person)}
+      alt="photo"
+      className="person-photo"
+      onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+    />
+  ) : (
+    "👤"
+  )}
+</div>
+              <div className="avatar">
+                {getPhotoPrincipale(person) ? (
+                  <img
+                    src={getPhotoPrincipale(person)}
+                    alt="photo"
+                    className="person-photo clickable-photo"
+                    onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+                  />
+                ) : (
+                  "👤"
+                )}
+              </div>
 
               <div className="person-info">
                 <div className="person-name">
@@ -1364,6 +1482,11 @@ setNouvelleIdentiteTelephone("");
             </div>
           ))}
         </div>
+
+        <PhotoZoomOverlay
+          photoZoom={photoZoom}
+          onClose={() => setPhotoZoom("")}
+        />
       </div>
     );
   }
@@ -1536,18 +1659,10 @@ setNouvelleIdentiteTelephone("");
             {editingId ? "Modifier" : "Enregistrer"}
           </button>
         </div>
-        {photoZoom && (
-  <div
-    className="photo-zoom-overlay"
-    onClick={() => setPhotoZoom("")}
-  >
-    <img
-      src={photoZoom}
-      alt="zoom"
-      className="photo-zoom-img"
-    />
-  </div>
-)}
+        <PhotoZoomOverlay
+          photoZoom={photoZoom}
+          onClose={() => setPhotoZoom("")}
+        />
       </div>
     );
   }
@@ -1817,11 +1932,10 @@ setNouvelleIdentiteTelephone("");
 )}
         
       </div>
-      {photoZoom && (
-  <div className="photo-zoom-overlay" onClick={() => setPhotoZoom("")}>
-    <img src={photoZoom} alt="zoom" className="photo-zoom-img" />
-  </div>
-)}
+      <PhotoZoomOverlay
+        photoZoom={photoZoom}
+        onClose={() => setPhotoZoom("")}
+      />
     </div>
   );
 }
