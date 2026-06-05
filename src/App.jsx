@@ -936,10 +936,11 @@ setNouvelleIdentiteTelephone("");
               <div className="avatar">
                 {getPhotoPrincipale(person) ? (
                   <img
-                    src={getPhotoPrincipale(person)}
-                    alt="photo"
-                    className="person-photo"
-                  />
+  src={getPhotoPrincipale(person)}
+  alt="photo"
+  className="person-photo"
+  onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+/>
                 ) : (
                   "👤"
                 )}
@@ -1327,10 +1328,11 @@ setNouvelleIdentiteTelephone("");
               <div className="avatar">
                 {getPhotoPrincipale(person) ? (
                   <img
-                    src={getPhotoPrincipale(person)}
-                    alt="photo"
-                    className="person-photo"
-                  />
+  src={getPhotoPrincipale(person)}
+  alt="photo"
+  className="person-photo"
+  onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+/>
                 ) : (
                   "👤"
                 )}
@@ -1503,10 +1505,10 @@ setNouvelleIdentiteTelephone("");
                 {photos.map((item, index) => (
                   <div className="photo-item" key={index}>
                     <img
-  src={item}
-  alt={`photo ${index + 1}`}
-  className="person-photo"
-  onClick={() => setPhotoZoom(item)}
+  src={photos[photoPrincipaleIndex] || photos[0]}
+  alt="photo principale"
+  className="photo-preview"
+  onClick={() => setPhotoZoom(photos[photoPrincipaleIndex] || photos[0])}
 />
 
                     <button
