@@ -1472,7 +1472,7 @@ const email =
 
         <h2 className="section-title">Administration</h2>
 
-        {currentUser?.role === "LE TÔLIER" && (
+        {currentUser && currentUser.role === "LE TÔLIER" && (
           <div className="admin-buttons">
             <button
               className="admin-main-btn"
