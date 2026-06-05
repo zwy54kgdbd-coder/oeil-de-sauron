@@ -1461,7 +1461,7 @@ const email =
 
   if (
   page === "admin" &&
-  (currentUser?.role === "LE TÔLIER" ||
+  {currentUser?.role === "LE TÔLIER" && (
     currentUser?.role === "ADMINISTRATEUR")
 ) {
     return (
