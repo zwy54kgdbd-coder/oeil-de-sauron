@@ -1461,8 +1461,11 @@ const email =
 
   if (
   page === "admin" &&
-  {currentUser?.role === "LE TÔLIER" && (
-    currentUser?.role === "ADMINISTRATEUR")
+  currentUser &&
+  (
+    currentUser.role === "LE TÔLIER" ||
+    currentUser.role === "ADMINISTRATEUR"
+  )
 ) {
     return (
       <div className="home-page">
@@ -1519,7 +1522,7 @@ const email =
 
         <h2 className="section-title">Historique</h2>
 
-        {currentUser?.role === "LE TÔLIER" && (
+        {currentUser && currentUser.role === "LE TÔLIER" && (
           <button className="delete-btn" onClick={viderHistorique}>
             Vider l'historique
           </button>
@@ -1710,15 +1713,16 @@ const email =
           <span>Secteurs</span>
         </div>
 
-        {currentUser?.role !== "MEMBRE" && (
-          {(currentUser?.role === "LE TÔLIER" ||
-  currentUser?.role === "ADMINISTRATEUR") && (
+        {currentUser &&
+  currentUser.role !== "MEMBRE" &&
+  (currentUser.role === "LE TÔLIER" ||
+    currentUser.role === "ADMINISTRATEUR") && (
   <div className="menu-card" onClick={() => setPage("admin")}>
     ⚙️
     <span>Administration</span>
   </div>
 )}
-        )}
+        
       </div>
     </div>
   );
