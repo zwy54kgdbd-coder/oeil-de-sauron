@@ -918,14 +918,19 @@ const handleVehiculePhoto = async (e) => {
 
   if (!confirmation) return;
 
-  const { error } = await supabase
-    .from("users")
-    .delete()
-    .eq("username", username);
+  const response = await fetch("/api/delete-user", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ username }),
+  });
 
-  if (error) {
-    console.error("ERREUR SUPPRESSION SUPABASE :", error);
-    alert("Erreur suppression Supabase : " + error.message);
+  const result = await response.json();
+
+  if (!response.ok) {
+    console.error("ERREUR SUPPRESSION UTILISATEUR :", result);
+    alert("Erreur suppression utilisateur : " + result.error);
     return;
   }
 
