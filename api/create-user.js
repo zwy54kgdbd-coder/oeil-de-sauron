@@ -31,9 +31,12 @@ export default async function handler(req, res) {
     usernameClean === "tolier"
       ? "tayeb.berkouk.tbt@gmail.com"
       : `${usernameClean}@oeildesauron.com`;
-
+const authEmail =
+  usernameClean === "tolier"
+    ? "tayeb.berkouk.tbt@gmail.com"
+    : `${usernameClean}_${Date.now()}@oeildesauron.com`;
   const { error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email: `${usernameClean}_${Date.now()}@oeildesauron.com`,
+    email: authEmail,
     password,
     email_confirm: true,
   });
@@ -51,6 +54,7 @@ export default async function handler(req, res) {
       nom,
       prenom,
       matricule,
+      auth_email: authEmail,
     },
   ]);
 
