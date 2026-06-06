@@ -352,10 +352,10 @@ const chargerVehicules = async () => {
 
   const loginClean = username.trim().toLowerCase();
 
-const email =
-  loginClean === "tolier"
+  const email =
+    loginClean === "tolier"
       ? "tayeb.berkouk.tbt@gmail.com"
-      : `${username}@oeildesauron.com`;
+      : `${loginClean}@oeildesauron.com`;
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,

@@ -27,14 +27,11 @@ export default async function handler(req, res) {
   }
 
   const usernameClean = username.trim().toLowerCase();
-  const email =
+  const authEmail =
     usernameClean === "tolier"
       ? "tayeb.berkouk.tbt@gmail.com"
       : `${usernameClean}@oeildesauron.com`;
-const authEmail =
-  usernameClean === "tolier"
-    ? "tayeb.berkouk.tbt@gmail.com"
-    : `${usernameClean}_${Date.now()}@oeildesauron.com`;
+
   const { error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: authEmail,
     password,
