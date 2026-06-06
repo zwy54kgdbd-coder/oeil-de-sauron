@@ -829,13 +829,40 @@ const handleVehiculePhoto = async (e) => {
     return;
   }
 
+  const usernameClean = newUsername.trim().toLowerCase();
+
+  if (editingUser) {
+    const { error } = await supabase
+      .from("users")
+      .update({
+        username: usernameClean,
+        password: newPassword,
+        role: newRole,
+        grade: newGrade,
+        nom: newNom,
+        prenom: newPrenom,
+        matricule: newMatricule,
+      })
+      .eq("username", editingUser);
+
+    if (error) {
+      alert("Erreur modification utilisateur : " + error.message);
+      return;
+    }
+
+    await chargerUtilisateurs();
+    resetUserForm();
+    alert("Utilisateur modifié.");
+    return;
+  }
+
   const response = await fetch("/api/create-user", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      username: newUsername,
+      username: usernameClean,
       password: newPassword,
       role: newRole,
       grade: newGrade,
@@ -848,7 +875,6 @@ const handleVehiculePhoto = async (e) => {
   const result = await response.json();
 
   if (!response.ok) {
-    console.log("ERREUR API CREATE USER :", result);
     alert("Erreur création utilisateur : " + result.error);
     return;
   }
