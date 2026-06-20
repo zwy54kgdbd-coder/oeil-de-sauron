@@ -2221,13 +2221,13 @@ if (page === "identityDetails" && selectedIdentity) {
         <h2 className="section-title">Individus enregistrés</h2>
 
         <div className="results-list">
-          {!search && identites.length === 0 && (
+          {identites.length === 0 && (
             <div className="admin-card">
               Aucune identité enregistrée.
             </div>
           )}
 
-          {!search && identites.map((person) => (
+          {identites.map((person) => (
             <div
               className="person-card"
               key={person.id}
@@ -2768,6 +2768,18 @@ if (page === "identityDetails" && selectedIdentity) {
                 {person.alias && <div className="person-alias">Alias : {person.alias}</div>}
                 {person.secteur && <div>Secteur habituel : {person.secteur}</div>}
                 {person.faits && <div>Secteur faits : {person.faits}</div>}
+
+                <div className="person-actions">
+                  <button
+                    className="edit-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      basculerFavoriIdentite(person);
+                    }}
+                  >
+                    Retirer BAC
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -2808,6 +2820,18 @@ if (page === "identityDetails" && selectedIdentity) {
                 {item.couleur && <div>Couleur : {item.couleur}</div>}
                 {item.secteur && <div>Secteur : {item.secteur}</div>}
                 {item.faits && <div>Faits : {item.faits}</div>}
+
+                <div className="person-actions">
+                  <button
+                    className="edit-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      basculerFavoriVehicule(item);
+                    }}
+                  >
+                    Retirer BAC
+                  </button>
+                </div>
               </div>
             </div>
           ))}
