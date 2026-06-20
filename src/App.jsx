@@ -1085,14 +1085,24 @@ const handleVehiculePhoto = async (e) => {
           ))}
 
           {results.map((person) => (
-            <div className="person-card" key={person.id}>
+            <div
+              className="person-card"
+              key={person.id}
+              onClick={() => {
+                setSelectedIdentity(person);
+                setPage("identityDetails");
+              }}
+            >
               <div className="avatar">
   {getPhotoPrincipale(person) ? (
     <img
       src={getPhotoPrincipale(person)}
       alt="photo"
       className="person-photo"
-      onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+      onClick={(e) => {
+        e.stopPropagation();
+        setPhotoZoom(getPhotoPrincipale(person));
+      }}
     />
   ) : (
     "👤"
@@ -1130,7 +1140,10 @@ const handleVehiculePhoto = async (e) => {
                 <div className="person-actions">
                   <button
                     className="edit-btn"
-                    onClick={() => modifierIdentite(person)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      modifierIdentite(person);
+                    }}
                   >
                     Modifier
                   </button>
@@ -1138,7 +1151,10 @@ const handleVehiculePhoto = async (e) => {
                   {currentUser?.role !== "MEMBRE" && (
                     <button
                       className="delete-btn"
-                      onClick={() => supprimerIdentite(person.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        supprimerIdentite(person.id);
+                      }}
                     >
                       Supprimer
                     </button>
