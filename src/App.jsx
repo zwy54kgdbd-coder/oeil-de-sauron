@@ -916,7 +916,7 @@ const chargerProduitsCaisseCafe = async () => {
     }
 
     const confirmation = window.confirm(
-      "Remettre les consommations à zéro et ajouter un café à 2 € à chaque collègue ? Les soldes positifs seront conservés."
+      "Remettre les consommations à zéro et ajouter un café à 2 € à chaque collègue ? Les soldes positifs seront déduits de 2 € quand c'est possible."
     );
 
     if (!confirmation) return;
@@ -952,9 +952,33 @@ const chargerProduitsCaisseCafe = async () => {
       return;
     }
 
+    const soldesMaj = caisseCafeSoldes
+      .filter((item) => COLLEGUES_CAISSE_CAFE.includes(item.collegue))
+      .map((item) => ({
+        id: item.id,
+        solde: Math.max(Number(item.solde || 0) - 2, 0),
+        updated_by: currentUser?.username || "Inconnu",
+      }));
+
+    for (const soldeItem of soldesMaj) {
+      const { error: soldeError } = await supabase
+        .from("caisse_cafe_soldes")
+        .update({
+          solde: soldeItem.solde,
+          updated_by: soldeItem.updated_by,
+        })
+        .eq("id", soldeItem.id);
+
+      if (soldeError) {
+        alert("Erreur déduction solde après remise à zéro : " + soldeError.message);
+        return;
+      }
+    }
+
     await chargerCaisseCafe();
+    await chargerCaisseCafeSoldes();
     ajouterHistorique(
-      "Remise à zéro caisse café : café à 2 € pour chaque collègue",
+      "Remise à zéro caisse café : café à 2 € pour chaque collègue avec déduction des soldes positifs",
       "caisse_cafe"
     );
   };
