@@ -1331,7 +1331,14 @@ if (page === "identityDetails" && selectedIdentity) {
                   <div>Individus liés : {personnes.length}</div>
 
                   {personnes.map((person) => (
-                    <div key={person.id} className="person-alias">
+                    <div
+                      key={person.id}
+                      className="person-alias"
+                      onClick={() => {
+                        setSelectedIdentity(person);
+                        setPage("identityDetails");
+                      }}
+                    >
                       {person.nom} {person.prenom}
                       {person.alias ? ` — ${person.alias}` : ""}
                     </div>
