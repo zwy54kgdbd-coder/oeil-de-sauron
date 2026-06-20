@@ -15,11 +15,12 @@ const COLLEGUES_CAISSE_CAFE = [
   "Hugo",
   "Quentin",
 ];
-const PRODUITS_CAISSE_CAFE = [
-  { value: "soft", label: "Soft", prix: 1 },
-  { value: "eau", label: "Eau", prix: 1 },
-  { value: "bieres", label: "Bières", prix: 2 },
-  { value: "chips", label: "Chip's", prix: 1 },
+const PRODUITS_CAISSE_CAFE_DEFAUT = [
+  { value: "boisson_sans_alcool", label: "Boisson sans alcool", prix: 1 },
+  { value: "eau", label: "Eau", prix: 0.5 },
+  { value: "biere", label: "Bière", prix: 2 },
+  { value: "condiments_050", label: "Condiments 0,50 €", prix: 0.5 },
+  { value: "condiments_100", label: "Condiments 1 €", prix: 1 },
   { value: "cafe", label: "Café", prix: 2 },
 ];
 
@@ -282,12 +283,15 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [nouveauFaitDescription, setNouveauFaitDescription] = useState("");
   const [caisseCafe, setCaisseCafe] = useState([]);
   const [caisseCafeSoldes, setCaisseCafeSoldes] = useState([]);
+  const [produitsCaisseCafe, setProduitsCaisseCafe] = useState(PRODUITS_CAISSE_CAFE_DEFAUT);
   const [caisseCafeCollegue, setCaisseCafeCollegue] = useState(COLLEGUES_CAISSE_CAFE[0]);
-  const [caisseCafeProduit, setCaisseCafeProduit] = useState("soft");
+  const [caisseCafeProduit, setCaisseCafeProduit] = useState("boisson_sans_alcool");
   const [caisseCafeQuantite, setCaisseCafeQuantite] = useState("1");
   const [caisseCafePrix, setCaisseCafePrix] = useState("1");
   const [soldeCafeCollegue, setSoldeCafeCollegue] = useState(COLLEGUES_CAISSE_CAFE[0]);
   const [soldeCafeMontant, setSoldeCafeMontant] = useState("");
+  const [nouveauProduitCafeNom, setNouveauProduitCafeNom] = useState("");
+  const [nouveauProduitCafePrix, setNouveauProduitCafePrix] = useState("");
     useEffect(() => {
   chargerIdentites();
   chargerVehicules();
@@ -295,6 +299,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   chargerJournalModifications();
   chargerCaisseCafe();
   chargerCaisseCafeSoldes();
+  chargerProduitsCaisseCafe();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -386,6 +391,21 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const caisseCafeProduitsChannel = supabase
+    .channel("realtime-caisse-cafe-produits")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "caisse_cafe_produits",
+      },
+      () => {
+        chargerProduitsCaisseCafe();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
@@ -393,6 +413,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     supabase.removeChannel(journalModificationsChannel);
     supabase.removeChannel(caisseCafeChannel);
     supabase.removeChannel(caisseCafeSoldesChannel);
+    supabase.removeChannel(caisseCafeProduitsChannel);
   };
 }, []);
 
@@ -569,6 +590,30 @@ const chargerCaisseCafeSoldes = async () => {
   setCaisseCafeSoldes(data || []);
 };
 
+const chargerProduitsCaisseCafe = async () => {
+  const { data, error } = await supabase
+    .from("caisse_cafe_produits")
+    .select("*")
+    .order("label", { ascending: true });
+
+  if (error) {
+    console.log("ERREUR PRODUITS CAISSE CAFÉ :", error);
+    setProduitsCaisseCafe(PRODUITS_CAISSE_CAFE_DEFAUT);
+    return;
+  }
+
+  const produitsPersonnalises = (data || []).map((item) => ({
+    value: item.value,
+    label: item.label,
+    prix: Number(item.prix || 0),
+  }));
+
+  setProduitsCaisseCafe([
+    ...PRODUITS_CAISSE_CAFE_DEFAUT,
+    ...produitsPersonnalises,
+  ]);
+};
+
   const saveUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     localStorage.setItem("users", JSON.stringify(updatedUsers));
@@ -654,7 +699,7 @@ const chargerCaisseCafeSoldes = async () => {
   };
 
   const changerProduitCaisseCafe = (produit) => {
-    const produitConfig = PRODUITS_CAISSE_CAFE.find((item) => item.value === produit);
+    const produitConfig = produitsCaisseCafe.find((item) => item.value === produit);
 
     setCaisseCafeProduit(produit);
     setCaisseCafePrix(String(produitConfig?.prix || 0));
@@ -663,7 +708,7 @@ const chargerCaisseCafeSoldes = async () => {
   const ajouterConsommationCaisseCafe = async () => {
     const quantite = Number(caisseCafeQuantite);
     const prixUnitaire = Number(caisseCafePrix.replace(",", "."));
-    const produitConfig = PRODUITS_CAISSE_CAFE.find(
+    const produitConfig = produitsCaisseCafe.find(
       (item) => item.value === caisseCafeProduit
     );
 
@@ -706,6 +751,58 @@ const chargerCaisseCafeSoldes = async () => {
     ajouterHistorique(
       `Consommation caisse café : ${caisseCafeCollegue} — ${produitConfig?.label || caisseCafeProduit} x${quantite} (${formatMontantEuro(total)})`,
       "caisse_cafe"
+    );
+  };
+
+  const ajouterProduitCaisseCafe = async () => {
+    if (
+      currentUser?.role !== "LE TÔLIER" &&
+      currentUser?.role !== "ADMINISTRATEUR"
+    ) {
+      alert("Seul le Tôlier ou un administrateur peut ajouter un produit.");
+      return;
+    }
+
+    const label = nouveauProduitCafeNom.trim();
+    const prix = Number(nouveauProduitCafePrix.replace(",", "."));
+
+    if (!label) {
+      alert("Renseigne le nom du produit.");
+      return;
+    }
+
+    if (!prix || prix <= 0) {
+      alert("Renseigne un prix valide.");
+      return;
+    }
+
+    const value = label
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+
+    const { error } = await supabase.from("caisse_cafe_produits").insert([
+      {
+        value,
+        label,
+        prix,
+        created_by: currentUser?.username || "Inconnu",
+      },
+    ]);
+
+    if (error) {
+      alert("Erreur ajout produit : " + error.message);
+      return;
+    }
+
+    setNouveauProduitCafeNom("");
+    setNouveauProduitCafePrix("");
+    await chargerProduitsCaisseCafe();
+    ajouterHistorique(
+      `Ajout produit caisse café : ${label} — ${formatMontantEuro(prix)}`,
+      "caisse_cafe_produit"
     );
   };
 
@@ -827,7 +924,7 @@ const chargerCaisseCafeSoldes = async () => {
 
     await chargerCaisseCafe();
     ajouterHistorique(
-      "Reset caisse café : remise à zéro avec café à 2 € pour chaque collègue",
+      "Remise à zéro caisse café : café à 2 € pour chaque collègue",
       "caisse_cafe"
     );
   };
@@ -3019,7 +3116,7 @@ if (page === "identityDetails" && selectedIdentity) {
         Number(
           caisseCafeSoldes.find((item) => item.collegue === collegue)?.solde || 0
         );
-      const quantites = PRODUITS_CAISSE_CAFE.reduce((acc, produit) => {
+      const quantites = produitsCaisseCafe.reduce((acc, produit) => {
         acc[produit.value] = consommations
           .filter((item) => item.produit === produit.value)
           .reduce((total, item) => total + Number(item.quantite || 0), 0);
@@ -3069,13 +3166,14 @@ if (page === "identityDetails" && selectedIdentity) {
             value={caisseCafeProduit}
             onChange={(e) => changerProduitCaisseCafe(e.target.value)}
           >
-            {PRODUITS_CAISSE_CAFE.filter((produit) => produit.value !== "cafe").map((produit) => (
+            {produitsCaisseCafe.filter((produit) => produit.value !== "cafe").map((produit) => (
               <option key={produit.value} value={produit.value}>
                 {produit.label}
               </option>
             ))}
           </select>
 
+          <label className="form-label">Quantité</label>
           <input
             type="number"
             min="1"
@@ -3084,6 +3182,7 @@ if (page === "identityDetails" && selectedIdentity) {
             onChange={(e) => setCaisseCafeQuantite(e.target.value)}
           />
 
+          <label className="form-label">Prix unitaire</label>
           <input
             type="number"
             min="0"
@@ -3117,7 +3216,7 @@ if (page === "identityDetails" && selectedIdentity) {
                   <div>Solde restant après consommation : {formatMontantEuro(item.soldeRestant)}</div>
                 )}
 
-                {PRODUITS_CAISSE_CAFE.map((produit) => (
+                {produitsCaisseCafe.map((produit) => (
                   <div key={produit.value}>
                     {produit.label} : {item.quantites[produit.value]}
                   </div>
@@ -3156,8 +3255,30 @@ if (page === "identityDetails" && selectedIdentity) {
               Modifier le solde
             </button>
 
+            <h3>Ajouter un produit</h3>
+
+            <input
+              type="text"
+              placeholder="Nom du produit"
+              value={nouveauProduitCafeNom}
+              onChange={(e) => setNouveauProduitCafeNom(e.target.value)}
+            />
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Prix"
+              value={nouveauProduitCafePrix}
+              onChange={(e) => setNouveauProduitCafePrix(e.target.value)}
+            />
+
+            <button className="admin-main-btn" onClick={ajouterProduitCaisseCafe}>
+              Ajouter produit
+            </button>
+
             <button className="delete-btn" onClick={resetCaisseCafe}>
-              Reset comptes + café 2 €
+              Remise à zéro + café 2 €
             </button>
           </div>
         )}

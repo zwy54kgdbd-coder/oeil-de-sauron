@@ -51,6 +51,14 @@ input {
   font-size: 13px;
 }
 
+.form-label {
+  display: block;
+  color: #b8860b;
+  font-size: 13px;
+  font-weight: bold;
+  margin: 10px 0 6px;
+}
+
 button {
   width: 100%;
   padding: 13px;
