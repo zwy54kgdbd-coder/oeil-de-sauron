@@ -210,6 +210,12 @@ button {
 .person-alias {
   color: #b8860b;
 }
+
+.important-amount {
+  color: white;
+  font-weight: 900;
+  font-size: 16px;
+}
 .liste-identites{
   width: 100%;
   max-width: 500px;

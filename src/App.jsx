@@ -288,6 +288,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [caisseCafeProduit, setCaisseCafeProduit] = useState("boisson_sans_alcool");
   const [caisseCafeQuantite, setCaisseCafeQuantite] = useState("1");
   const [caisseCafePrix, setCaisseCafePrix] = useState("1");
+  const [editingCaisseCafeId, setEditingCaisseCafeId] = useState(null);
   const [soldeCafeCollegue, setSoldeCafeCollegue] = useState(COLLEGUES_CAISSE_CAFE[0]);
   const [soldeCafeMontant, setSoldeCafeMontant] = useState("");
   const [nouveauProduitCafeNom, setNouveauProduitCafeNom] = useState("");
@@ -705,7 +706,7 @@ const chargerProduitsCaisseCafe = async () => {
     setCaisseCafePrix(String(produitConfig?.prix || 0));
   };
 
-  const ajouterConsommationCaisseCafe = async () => {
+  const enregistrerConsommationCaisseCafe = async () => {
     const quantite = Number(caisseCafeQuantite);
     const prixUnitaire = Number(caisseCafePrix.replace(",", "."));
     const produitConfig = produitsCaisseCafe.find(
@@ -728,30 +729,59 @@ const chargerProduitsCaisseCafe = async () => {
     }
 
     const total = quantite * prixUnitaire;
+    const ficheConsommation = {
+      collegue: caisseCafeCollegue,
+      produit: caisseCafeProduit,
+      produit_label: produitConfig?.label || caisseCafeProduit,
+      quantite,
+      prix_unitaire: prixUnitaire,
+      total,
+      created_by: currentUser?.username || "Inconnu",
+    };
 
-    const { error } = await supabase.from("caisse_cafe").insert([
-      {
-        collegue: caisseCafeCollegue,
-        produit: caisseCafeProduit,
-        produit_label: produitConfig?.label || caisseCafeProduit,
-        quantite,
-        prix_unitaire: prixUnitaire,
-        total,
-        created_by: currentUser?.username || "Inconnu",
-      },
-    ]);
+    const result = editingCaisseCafeId
+      ? await supabase
+          .from("caisse_cafe")
+          .update(ficheConsommation)
+          .eq("id", editingCaisseCafeId)
+      : await supabase.from("caisse_cafe").insert([ficheConsommation]);
 
-    if (error) {
-      alert("Erreur caisse café : " + error.message);
+    if (result.error) {
+      alert("Erreur caisse café : " + result.error.message);
       return;
     }
 
     setCaisseCafeQuantite("1");
+    setEditingCaisseCafeId(null);
     await chargerCaisseCafe();
     ajouterHistorique(
-      `Consommation caisse café : ${caisseCafeCollegue} — ${produitConfig?.label || caisseCafeProduit} x${quantite} (${formatMontantEuro(total)})`,
+      `${editingCaisseCafeId ? "Modification" : "Ajout"} caisse café : ${caisseCafeCollegue} — ${produitConfig?.label || caisseCafeProduit} x${quantite} (${formatMontantEuro(total)})`,
       "caisse_cafe"
     );
+  };
+
+  const modifierConsommationCaisseCafe = (item) => {
+    if (
+      currentUser?.role !== "LE TÔLIER" &&
+      currentUser?.role !== "ADMINISTRATEUR"
+    ) {
+      alert("Seul le Tôlier ou un administrateur peut modifier une consommation.");
+      return;
+    }
+
+    setEditingCaisseCafeId(item.id);
+    setCaisseCafeCollegue(item.collegue || COLLEGUES_CAISSE_CAFE[0]);
+    setCaisseCafeProduit(item.produit || "boisson_sans_alcool");
+    setCaisseCafeQuantite(String(item.quantite || 1));
+    setCaisseCafePrix(String(item.prix_unitaire || 1));
+  };
+
+  const annulerModificationCaisseCafe = () => {
+    setEditingCaisseCafeId(null);
+    setCaisseCafeCollegue(COLLEGUES_CAISSE_CAFE[0]);
+    setCaisseCafeProduit("boisson_sans_alcool");
+    setCaisseCafeQuantite("1");
+    setCaisseCafePrix("1");
   };
 
   const ajouterProduitCaisseCafe = async () => {
@@ -3147,7 +3177,7 @@ if (page === "identityDetails" && selectedIdentity) {
         <h2 className="section-title">Caisse café</h2>
 
         <div className="admin-card">
-          <h3>Ajouter une consommation</h3>
+          <h3>{editingCaisseCafeId ? "Modifier" : "Ajouter"}</h3>
 
           <select
             className="role-select"
@@ -3192,14 +3222,20 @@ if (page === "identityDetails" && selectedIdentity) {
             onChange={(e) => setCaisseCafePrix(e.target.value)}
           />
 
-          <button className="admin-main-btn" onClick={ajouterConsommationCaisseCafe}>
-            Ajouter consommation
+          <button className="admin-main-btn" onClick={enregistrerConsommationCaisseCafe}>
+            {editingCaisseCafeId ? "Enregistrer modification" : "Ajouter"}
           </button>
+
+          {editingCaisseCafeId && (
+            <button className="cancel-btn" onClick={annulerModificationCaisseCafe}>
+              Annuler modification
+            </button>
+          )}
         </div>
 
         <div className="admin-card">
           <h3>Résumé</h3>
-          <p>Total restant à payer : {formatMontantEuro(totalResteAPayer)}</p>
+          <p>Total des sommes dues : {formatMontantEuro(totalResteAPayer)}</p>
         </div>
 
         <div className="results-list">
@@ -3211,7 +3247,7 @@ if (page === "identityDetails" && selectedIdentity) {
                 <div className="person-name">{item.collegue}</div>
                 <div>Total consommé : {formatMontantEuro(item.totalConsomme)}</div>
                 <div>Solde positif : {formatMontantEuro(item.solde)}</div>
-                <div>Reste à payer : {formatMontantEuro(item.resteAPayer)}</div>
+                <div className="important-amount">Reste à payer : {formatMontantEuro(item.resteAPayer)}</div>
                 {item.soldeRestant > 0 && (
                   <div>Solde restant après consommation : {formatMontantEuro(item.soldeRestant)}</div>
                 )}
@@ -3302,12 +3338,21 @@ if (page === "identityDetails" && selectedIdentity) {
               </div>
 
               {peutGererCaisseCafe && (
-                <button
-                  className="delete-btn"
-                  onClick={() => supprimerConsommationCaisseCafe(item.id)}
-                >
-                  Supprimer
-                </button>
+                <div className="user-buttons">
+                  <button
+                    className="edit-btn"
+                    onClick={() => modifierConsommationCaisseCafe(item)}
+                  >
+                    Modifier
+                  </button>
+
+                  <button
+                    className="delete-btn"
+                    onClick={() => supprimerConsommationCaisseCafe(item.id)}
+                  >
+                    Supprimer
+                  </button>
+                </div>
               )}
             </div>
           ))}
