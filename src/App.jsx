@@ -5,6 +5,23 @@ import { supabase } from "./supabase";
 const initialUsers = [];
 
 const CREATE_NEW_IDENTITY = "__CREATE_NEW_IDENTITY__";
+const COLLEGUES_CAISSE_CAFE = [
+  "Cedric",
+  "Benjamin",
+  "Tayeb",
+  "Michel",
+  "Thomas",
+  "Sebastien",
+  "Hugo",
+  "Quentin",
+];
+const PRODUITS_CAISSE_CAFE = [
+  { value: "soft", label: "Soft", prix: 1 },
+  { value: "eau", label: "Eau", prix: 1 },
+  { value: "bieres", label: "Bières", prix: 2 },
+  { value: "chips", label: "Chip's", prix: 1 },
+  { value: "cafe", label: "Café", prix: 2 },
+];
 
 function safeParseArray(value) {
   try {
@@ -130,6 +147,15 @@ function formatHeureFr(value) {
   return date.toLocaleTimeString("fr-FR");
 }
 
+function formatMontantEuro(value) {
+  const montant = Number(value || 0);
+
+  return montant.toLocaleString("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  });
+}
+
 function PhotoZoomOverlay({ photoZoom, onClose }) {
   if (!photoZoom) return null;
 
@@ -251,14 +277,24 @@ const [telephone, setTelephone] = useState("");
   const [selectedIdentity, setSelectedIdentity] = useState(null);
   const [identityDetailsReturnPage, setIdentityDetailsReturnPage] = useState("search");
 const [selectedVehicle, setSelectedVehicle] = useState(null);
-const [vehicleDetailsReturnPage, setVehicleDetailsReturnPage] = useState("vehicules");
+  const [vehicleDetailsReturnPage, setVehicleDetailsReturnPage] = useState("vehicules");
   const [nouveauFaitDate, setNouveauFaitDate] = useState("");
   const [nouveauFaitDescription, setNouveauFaitDescription] = useState("");
+  const [caisseCafe, setCaisseCafe] = useState([]);
+  const [caisseCafeSoldes, setCaisseCafeSoldes] = useState([]);
+  const [caisseCafeCollegue, setCaisseCafeCollegue] = useState(COLLEGUES_CAISSE_CAFE[0]);
+  const [caisseCafeProduit, setCaisseCafeProduit] = useState("soft");
+  const [caisseCafeQuantite, setCaisseCafeQuantite] = useState("1");
+  const [caisseCafePrix, setCaisseCafePrix] = useState("1");
+  const [soldeCafeCollegue, setSoldeCafeCollegue] = useState(COLLEGUES_CAISSE_CAFE[0]);
+  const [soldeCafeMontant, setSoldeCafeMontant] = useState("");
     useEffect(() => {
   chargerIdentites();
   chargerVehicules();
   chargerFaitsIdentites();
   chargerJournalModifications();
+  chargerCaisseCafe();
+  chargerCaisseCafeSoldes();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -320,11 +356,43 @@ const [vehicleDetailsReturnPage, setVehicleDetailsReturnPage] = useState("vehicu
     )
     .subscribe();
 
+  const caisseCafeChannel = supabase
+    .channel("realtime-caisse-cafe")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "caisse_cafe",
+      },
+      () => {
+        chargerCaisseCafe();
+      }
+    )
+    .subscribe();
+
+  const caisseCafeSoldesChannel = supabase
+    .channel("realtime-caisse-cafe-soldes")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "caisse_cafe_soldes",
+      },
+      () => {
+        chargerCaisseCafeSoldes();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
     supabase.removeChannel(faitsIdentitesChannel);
     supabase.removeChannel(journalModificationsChannel);
+    supabase.removeChannel(caisseCafeChannel);
+    supabase.removeChannel(caisseCafeSoldesChannel);
   };
 }, []);
 
@@ -473,6 +541,34 @@ const chargerJournalModifications = async () => {
   setHistorique(data || []);
 };
 
+const chargerCaisseCafe = async () => {
+  const { data, error } = await supabase
+    .from("caisse_cafe")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR CAISSE CAFÉ :", error);
+    return;
+  }
+
+  setCaisseCafe(data || []);
+};
+
+const chargerCaisseCafeSoldes = async () => {
+  const { data, error } = await supabase
+    .from("caisse_cafe_soldes")
+    .select("*")
+    .order("collegue", { ascending: true });
+
+  if (error) {
+    console.log("ERREUR SOLDES CAISSE CAFÉ :", error);
+    return;
+  }
+
+  setCaisseCafeSoldes(data || []);
+};
+
   const saveUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     localStorage.setItem("users", JSON.stringify(updatedUsers));
@@ -554,6 +650,185 @@ const chargerJournalModifications = async () => {
       `${nouveauStatut ? "Épinglage" : "Retrait favori"} véhicule BAC : ${getNomVehicule(item)}`,
       "vehicule",
       item.id
+    );
+  };
+
+  const changerProduitCaisseCafe = (produit) => {
+    const produitConfig = PRODUITS_CAISSE_CAFE.find((item) => item.value === produit);
+
+    setCaisseCafeProduit(produit);
+    setCaisseCafePrix(String(produitConfig?.prix || 0));
+  };
+
+  const ajouterConsommationCaisseCafe = async () => {
+    const quantite = Number(caisseCafeQuantite);
+    const prixUnitaire = Number(caisseCafePrix.replace(",", "."));
+    const produitConfig = PRODUITS_CAISSE_CAFE.find(
+      (item) => item.value === caisseCafeProduit
+    );
+
+    if (!caisseCafeCollegue) {
+      alert("Choisis un collègue.");
+      return;
+    }
+
+    if (!quantite || quantite <= 0) {
+      alert("Renseigne une quantité valide.");
+      return;
+    }
+
+    if (!prixUnitaire || prixUnitaire <= 0) {
+      alert("Renseigne un prix valide.");
+      return;
+    }
+
+    const total = quantite * prixUnitaire;
+
+    const { error } = await supabase.from("caisse_cafe").insert([
+      {
+        collegue: caisseCafeCollegue,
+        produit: caisseCafeProduit,
+        produit_label: produitConfig?.label || caisseCafeProduit,
+        quantite,
+        prix_unitaire: prixUnitaire,
+        total,
+        created_by: currentUser?.username || "Inconnu",
+      },
+    ]);
+
+    if (error) {
+      alert("Erreur caisse café : " + error.message);
+      return;
+    }
+
+    setCaisseCafeQuantite("1");
+    await chargerCaisseCafe();
+    ajouterHistorique(
+      `Consommation caisse café : ${caisseCafeCollegue} — ${produitConfig?.label || caisseCafeProduit} x${quantite} (${formatMontantEuro(total)})`,
+      "caisse_cafe"
+    );
+  };
+
+  const modifierSoldeCaisseCafe = async () => {
+    const montant = Number(soldeCafeMontant.replace(",", "."));
+
+    if (!soldeCafeCollegue) {
+      alert("Choisis un collègue.");
+      return;
+    }
+
+    if (Number.isNaN(montant) || montant < 0) {
+      alert("Renseigne un solde valide.");
+      return;
+    }
+
+    const soldeExistant = caisseCafeSoldes.find(
+      (item) => item.collegue === soldeCafeCollegue
+    );
+
+    const payload = {
+      collegue: soldeCafeCollegue,
+      solde: montant,
+      updated_by: currentUser?.username || "Inconnu",
+    };
+
+    const result = soldeExistant
+      ? await supabase
+          .from("caisse_cafe_soldes")
+          .update(payload)
+          .eq("id", soldeExistant.id)
+      : await supabase.from("caisse_cafe_soldes").insert([payload]);
+
+    if (result.error) {
+      alert("Erreur modification solde : " + result.error.message);
+      return;
+    }
+
+    setSoldeCafeMontant("");
+    await chargerCaisseCafeSoldes();
+    ajouterHistorique(
+      `Modification solde caisse café : ${soldeCafeCollegue} — ${formatMontantEuro(montant)}`,
+      "caisse_cafe_solde"
+    );
+  };
+
+  const supprimerConsommationCaisseCafe = async (id) => {
+    if (currentUser?.role === "MEMBRE") {
+      alert("Seul un administrateur peut supprimer une consommation.");
+      return;
+    }
+
+    const confirmation = window.confirm("Supprimer cette consommation ?");
+
+    if (!confirmation) return;
+
+    const mouvement = caisseCafe.find((item) => String(item.id) === String(id));
+
+    const { error } = await supabase
+      .from("caisse_cafe")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      alert("Erreur suppression caisse café : " + error.message);
+      return;
+    }
+
+    await chargerCaisseCafe();
+    ajouterHistorique(
+      `Suppression consommation caisse café : ${mouvement ? `${mouvement.collegue} — ${mouvement.produit_label || mouvement.produit} (${formatMontantEuro(mouvement.total)})` : id}`,
+      "caisse_cafe",
+      id
+    );
+  };
+
+  const resetCaisseCafe = async () => {
+    if (currentUser?.role === "MEMBRE") {
+      alert("Seul un administrateur peut faire un reset.");
+      return;
+    }
+
+    const confirmation = window.confirm(
+      "Remettre les consommations à zéro et ajouter un café à 2 € à chaque collègue ? Les soldes positifs seront conservés."
+    );
+
+    if (!confirmation) return;
+
+    const { error: deleteError } = await supabase
+      .from("caisse_cafe")
+      .delete()
+      .neq("id", 0);
+
+    if (deleteError) {
+      alert("Erreur reset caisse café : " + deleteError.message);
+      return;
+    }
+
+    const resetId = String(Date.now());
+    const lignesCafe = COLLEGUES_CAISSE_CAFE.map((collegue) => ({
+      collegue,
+      produit: "cafe",
+      produit_label: "Café",
+      quantite: 1,
+      prix_unitaire: 2,
+      total: 2,
+      created_by: currentUser?.username || "Inconnu",
+      reset_id: resetId,
+    }));
+
+    const { error: insertError } = await supabase
+      .from("caisse_cafe")
+      .insert(lignesCafe);
+
+    if (insertError) {
+      alert("Erreur ajout cafés après reset : " + insertError.message);
+      return;
+    }
+
+    await chargerCaisseCafe();
+    ajouterHistorique(
+      "Reset caisse café : remise à zéro avec café à 2 € pour chaque collègue",
+      "caisse_cafe"
     );
   };
 
@@ -2730,6 +3005,196 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  if (page === "caisseCafe") {
+    const peutGererCaisseCafe =
+      currentUser?.role === "LE TÔLIER" ||
+      currentUser?.role === "ADMINISTRATEUR";
+    const resumeCaisseCafe = COLLEGUES_CAISSE_CAFE.map((collegue) => {
+      const consommations = caisseCafe.filter((item) => item.collegue === collegue);
+      const totalConsomme = consommations.reduce(
+        (total, item) => total + Number(item.total || 0),
+        0
+      );
+      const solde =
+        Number(
+          caisseCafeSoldes.find((item) => item.collegue === collegue)?.solde || 0
+        );
+      const quantites = PRODUITS_CAISSE_CAFE.reduce((acc, produit) => {
+        acc[produit.value] = consommations
+          .filter((item) => item.produit === produit.value)
+          .reduce((total, item) => total + Number(item.quantite || 0), 0);
+
+        return acc;
+      }, {});
+
+      return {
+        collegue,
+        totalConsomme,
+        solde,
+        resteAPayer: Math.max(totalConsomme - solde, 0),
+        soldeRestant: Math.max(solde - totalConsomme, 0),
+        quantites,
+      };
+    });
+    const totalResteAPayer = resumeCaisseCafe.reduce(
+      (total, item) => total + item.resteAPayer,
+      0
+    );
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("home")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Caisse café</h2>
+
+        <div className="admin-card">
+          <h3>Ajouter une consommation</h3>
+
+          <select
+            className="role-select"
+            value={caisseCafeCollegue}
+            onChange={(e) => setCaisseCafeCollegue(e.target.value)}
+          >
+            {COLLEGUES_CAISSE_CAFE.map((collegue) => (
+              <option key={collegue} value={collegue}>
+                {collegue}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="role-select"
+            value={caisseCafeProduit}
+            onChange={(e) => changerProduitCaisseCafe(e.target.value)}
+          >
+            {PRODUITS_CAISSE_CAFE.filter((produit) => produit.value !== "cafe").map((produit) => (
+              <option key={produit.value} value={produit.value}>
+                {produit.label}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="number"
+            min="1"
+            placeholder="Quantité"
+            value={caisseCafeQuantite}
+            onChange={(e) => setCaisseCafeQuantite(e.target.value)}
+          />
+
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Prix unitaire"
+            value={caisseCafePrix}
+            onChange={(e) => setCaisseCafePrix(e.target.value)}
+          />
+
+          <button className="admin-main-btn" onClick={ajouterConsommationCaisseCafe}>
+            Ajouter consommation
+          </button>
+        </div>
+
+        <div className="admin-card">
+          <h3>Résumé</h3>
+          <p>Total restant à payer : {formatMontantEuro(totalResteAPayer)}</p>
+        </div>
+
+        <div className="results-list">
+          {resumeCaisseCafe.map((item) => (
+            <div className="person-card" key={item.collegue}>
+              <div className="avatar">☕</div>
+
+              <div className="person-info">
+                <div className="person-name">{item.collegue}</div>
+                <div>Total consommé : {formatMontantEuro(item.totalConsomme)}</div>
+                <div>Solde positif : {formatMontantEuro(item.solde)}</div>
+                <div>Reste à payer : {formatMontantEuro(item.resteAPayer)}</div>
+                {item.soldeRestant > 0 && (
+                  <div>Solde restant après consommation : {formatMontantEuro(item.soldeRestant)}</div>
+                )}
+
+                {PRODUITS_CAISSE_CAFE.map((produit) => (
+                  <div key={produit.value}>
+                    {produit.label} : {item.quantites[produit.value]}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {peutGererCaisseCafe && (
+          <div className="admin-card">
+            <h3>Modifier un solde positif</h3>
+
+            <select
+              className="role-select"
+              value={soldeCafeCollegue}
+              onChange={(e) => setSoldeCafeCollegue(e.target.value)}
+            >
+              {COLLEGUES_CAISSE_CAFE.map((collegue) => (
+                <option key={collegue} value={collegue}>
+                  {collegue}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Solde positif"
+              value={soldeCafeMontant}
+              onChange={(e) => setSoldeCafeMontant(e.target.value)}
+            />
+
+            <button className="admin-main-btn" onClick={modifierSoldeCaisseCafe}>
+              Modifier le solde
+            </button>
+
+            <button className="delete-btn" onClick={resetCaisseCafe}>
+              Reset comptes + café 2 €
+            </button>
+          </div>
+        )}
+
+        <div className="admin-card">
+          <h3>Historique des consommations</h3>
+
+          {caisseCafe.length === 0 && <p>Aucune consommation enregistrée.</p>}
+
+          {caisseCafe.map((item) => (
+            <div className="user-line" key={item.id}>
+              <div>
+                <strong>
+                  {item.collegue} — {item.produit_label || item.produit} x{item.quantite}
+                </strong>
+                <br />
+                {formatMontantEuro(item.total)} le {formatDateFr(item.created_at)} à{" "}
+                {formatHeureFr(item.created_at)}
+                <br />
+                Ajouté par : {item.created_by || "Inconnu"}
+              </div>
+
+              {peutGererCaisseCafe && (
+                <button
+                  className="delete-btn"
+                  onClick={() => supprimerConsommationCaisseCafe(item.id)}
+                >
+                  Supprimer
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (page === "favorisBac") {
     const identitesFavorites = trierIdentitesParNom(
       identites.filter((person) => person.favori_bac)
@@ -2897,6 +3362,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("favorisBac")}>
           ⭐
           <span>Favoris BAC</span>
+        </div>
+
+        <div className="menu-card" onClick={() => setPage("caisseCafe")}>
+          ☕
+          <span>Caisse café</span>
         </div>
 
         {currentUser &&
