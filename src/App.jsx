@@ -87,6 +87,18 @@ function getPhotoPrincipale(person) {
   return photos[index] || photos[0] || person.photo || "";
 }
 
+function formatDateFr(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("fr-FR");
+}
+
 function PhotoZoomOverlay({ photoZoom, onClose }) {
   if (!photoZoom) return null;
 
@@ -158,6 +170,7 @@ const chargerUtilisateurs = async () => {
 
   const [identites, setIdentites] = useState([]);
   const [vehicules, setVehicules] = useState([]);
+  const [faitsIdentites, setFaitsIdentites] = useState([]);
   const [historique, setHistorique] = useState([]);
 
   const [editingVehiculeId, setEditingVehiculeId] = useState(null);
@@ -206,9 +219,12 @@ const [telephone, setTelephone] = useState("");
   const [selectedIdentity, setSelectedIdentity] = useState(null);
   const [identityDetailsReturnPage, setIdentityDetailsReturnPage] = useState("search");
 const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [nouveauFaitDate, setNouveauFaitDate] = useState("");
+  const [nouveauFaitDescription, setNouveauFaitDescription] = useState("");
     useEffect(() => {
   chargerIdentites();
   chargerVehicules();
+  chargerFaitsIdentites();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -240,9 +256,25 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const faitsIdentitesChannel = supabase
+    .channel("realtime-faits-identites")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "faits_identites",
+      },
+      () => {
+        chargerFaitsIdentites();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
+    supabase.removeChannel(faitsIdentitesChannel);
   };
 }, []);
 
@@ -298,6 +330,64 @@ const chargerVehicules = async () => {
 }));
 
   setVehicules(vehiculesFormates);
+};
+
+const chargerFaitsIdentites = async () => {
+  const { data, error } = await supabase
+    .from("faits_identites")
+    .select("*")
+    .order("date_fait", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR FAITS IDENTITÉS :", error);
+    return;
+  }
+
+  setFaitsIdentites(data || []);
+};
+
+const ajouterFaitIdentite = async (identiteId) => {
+  if (!nouveauFaitDate || !nouveauFaitDescription.trim()) {
+    alert("Renseigne une date et un fait.");
+    return;
+  }
+
+  const { error } = await supabase.from("faits_identites").insert([
+    {
+      identite_id: identiteId,
+      date_fait: nouveauFaitDate,
+      description: nouveauFaitDescription.trim(),
+      created_by: currentUser?.username || "",
+    },
+  ]);
+
+  if (error) {
+    alert("Erreur ajout fait : " + error.message);
+    return;
+  }
+
+  setNouveauFaitDate("");
+  setNouveauFaitDescription("");
+  await chargerFaitsIdentites();
+};
+
+const supprimerFaitIdentite = async (id) => {
+  const confirmation = window.confirm("Supprimer ce fait ?");
+
+  if (!confirmation) return;
+
+  const { error } = await supabase
+    .from("faits_identites")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    alert("Erreur suppression fait : " + error.message);
+    return;
+  }
+
+  await chargerFaitsIdentites();
 };
 
   const saveUsers = (updatedUsers) => {
@@ -1180,6 +1270,9 @@ if (page === "identityDetails" && selectedIdentity) {
   const vehiculesLies = vehicules.filter(
     (item) => String(item.individuId) === String(person.id)
   );
+  const faitsHistorique = faitsIdentites.filter(
+    (item) => String(item.identite_id) === String(person.id)
+  );
 
   return (
     <div className="home-page">
@@ -1226,6 +1319,56 @@ if (page === "identityDetails" && selectedIdentity) {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="admin-card">
+        <h3>Historique des faits</h3>
+
+        {faitsHistorique.length === 0 && <p>Aucun fait enregistré.</p>}
+
+        {faitsHistorique.map((item) => (
+          <div className="user-line" key={item.id}>
+            <div>
+              <strong>
+                {formatDateFr(item.date_fait)} : {item.description}
+              </strong>
+              {item.created_by && (
+                <>
+                  <br />
+                  Ajouté par : {item.created_by}
+                </>
+              )}
+            </div>
+
+            {currentUser?.role !== "MEMBRE" && (
+              <button
+                className="delete-btn"
+                onClick={() => supprimerFaitIdentite(item.id)}
+              >
+                Supprimer
+              </button>
+            )}
+          </div>
+        ))}
+
+        <input
+          type="date"
+          value={nouveauFaitDate}
+          onChange={(e) => setNouveauFaitDate(e.target.value)}
+        />
+
+        <textarea
+          placeholder="Nouveau fait"
+          value={nouveauFaitDescription}
+          onChange={(e) => setNouveauFaitDescription(e.target.value)}
+        />
+
+        <button
+          className="admin-main-btn"
+          onClick={() => ajouterFaitIdentite(person.id)}
+        >
+          Ajouter un fait
+        </button>
       </div>
 
       <div className="admin-card">
