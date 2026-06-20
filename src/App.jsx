@@ -62,6 +62,15 @@ function getLibelleIdentite(person) {
   );
 }
 
+function trierIdentitesParNom(values) {
+  return [...values].sort((a, b) => {
+    const nomA = `${a.nom || ""} ${a.prenom || ""} ${a.alias || ""}`;
+    const nomB = `${b.nom || ""} ${b.prenom || ""} ${b.alias || ""}`;
+
+    return nomA.localeCompare(nomB, "fr", { sensitivity: "base" });
+  });
+}
+
 function getIdentite(identites, individuId) {
   return identites.find((item) => String(item.id) === String(individuId));
 }
@@ -1199,7 +1208,7 @@ const handleVehiculePhoto = async (e) => {
   alert("Utilisateur supprimé.");
 };
 
-  const results = [...fakePeople, ...identites].filter((person) => {
+  const results = trierIdentitesParNom([...fakePeople, ...identites].filter((person) => {
     const fullText = `
       ${person.nom || ""}
       ${person.prenom || ""}
@@ -1210,7 +1219,7 @@ const handleVehiculePhoto = async (e) => {
     `.toLowerCase();
 
     return fullText.includes(search.toLowerCase());
-  });
+  }));
 
   const vehiculeResults = vehicules.filter((item) => {
     const fullText = `
@@ -1660,11 +1669,11 @@ if (page === "identityDetails" && selectedIdentity) {
           )}
 
           {secteursUniques.map((secteurNom) => {
-            const personnes = identites.filter((person) =>
+            const personnes = trierIdentitesParNom(identites.filter((person) =>
               typeSecteur === "habituel"
                 ? person.secteur === secteurNom
                 : person.faits === secteurNom
-            );
+            ));
             const vehiculesSecteur = vehicules.filter((item) =>
               typeSecteur === "habituel"
                 ? item.secteur === secteurNom
@@ -2041,7 +2050,7 @@ if (page === "identityDetails" && selectedIdentity) {
             <option value="">Aucune identité liée</option>
             <option value={CREATE_NEW_IDENTITY}>➕ Créer une nouvelle identité</option>
 
-            {identites.map((person) => (
+            {trierIdentitesParNom(identites).map((person) => (
               <option key={person.id} value={person.id}>
                 {person.nom} {person.prenom}
                 {person.alias ? ` — ${person.alias}` : ""}
@@ -2227,7 +2236,7 @@ if (page === "identityDetails" && selectedIdentity) {
             </div>
           )}
 
-          {identites.map((person) => (
+          {trierIdentitesParNom(identites).map((person) => (
             <div
               className="person-card"
               key={person.id}
@@ -2722,7 +2731,9 @@ if (page === "identityDetails" && selectedIdentity) {
   }
 
   if (page === "favorisBac") {
-    const identitesFavorites = identites.filter((person) => person.favori_bac);
+    const identitesFavorites = trierIdentitesParNom(
+      identites.filter((person) => person.favori_bac)
+    );
     const vehiculesFavoris = vehicules.filter((item) => item.favori_bac);
 
     return (
