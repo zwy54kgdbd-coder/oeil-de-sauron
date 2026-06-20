@@ -1475,6 +1475,11 @@ if (page === "identityDetails" && selectedIdentity) {
   if (page === "vehicleDetails" && selectedVehicle) {
     const item = selectedVehicle;
     const identiteLiee = getIdentite(identites, item.individuId);
+    const vehiculePhotosDetails = getPhotos(item);
+    const vehiculePhotoPrincipale = getPhotoPrincipale(item);
+    const vehiculePhotosSecondaires = vehiculePhotosDetails.filter(
+      (photoItem) => photoItem !== vehiculePhotoPrincipale
+    );
 
     return (
       <div className="home-page">
@@ -1485,13 +1490,27 @@ if (page === "identityDetails" && selectedIdentity) {
         <h2 className="section-title">Fiche véhicule</h2>
 
         <div className="admin-card">
-          {item.photo && (
+          {vehiculePhotoPrincipale && (
             <img
-              src={item.photo}
+              src={vehiculePhotoPrincipale}
               alt="véhicule"
               className="photo-preview"
-              onClick={() => setPhotoZoom(item.photo)}
+              onClick={() => setPhotoZoom(vehiculePhotoPrincipale)}
             />
+          )}
+
+          {vehiculePhotosSecondaires.length > 0 && (
+            <div className="photos-grid">
+              {vehiculePhotosSecondaires.map((photoItem, index) => (
+                <img
+                  key={index}
+                  src={photoItem}
+                  alt={`photo véhicule ${index + 2}`}
+                  className="person-photo"
+                  onClick={() => setPhotoZoom(photoItem)}
+                />
+              ))}
+            </div>
           )}
 
           <h3>{getNomVehicule(item)}</h3>
