@@ -959,6 +959,35 @@ const chargerProduitsCaisseCafe = async () => {
     );
   };
 
+  const resetCaisseCafeCollegue = async (collegue) => {
+    if (currentUser?.role === "MEMBRE") {
+      alert("Seul un administrateur peut faire une remise à zéro.");
+      return;
+    }
+
+    const confirmation = window.confirm(
+      `Remettre à zéro les consommations de ${collegue} ? Son solde positif sera conservé.`
+    );
+
+    if (!confirmation) return;
+
+    const { error } = await supabase
+      .from("caisse_cafe")
+      .delete()
+      .eq("collegue", collegue);
+
+    if (error) {
+      alert("Erreur remise à zéro collègue : " + error.message);
+      return;
+    }
+
+    await chargerCaisseCafe();
+    ajouterHistorique(
+      `Remise à zéro caisse café individuelle : ${collegue}`,
+      "caisse_cafe"
+    );
+  };
+
   const viderHistorique = async () => {
     if (currentUser?.role !== "LE TÔLIER") {
       alert("Seul le Tôlier peut vider l'historique.");
@@ -3257,6 +3286,15 @@ if (page === "identityDetails" && selectedIdentity) {
                     {produit.label} : {item.quantites[produit.value]}
                   </div>
                 ))}
+
+                {peutGererCaisseCafe && (
+                  <button
+                    className="delete-btn"
+                    onClick={() => resetCaisseCafeCollegue(item.collegue)}
+                  >
+                    Remise à zéro
+                  </button>
+                )}
               </div>
             </div>
           ))}
