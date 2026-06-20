@@ -242,6 +242,7 @@ const [telephone, setTelephone] = useState("");
   const [selectedIdentity, setSelectedIdentity] = useState(null);
   const [identityDetailsReturnPage, setIdentityDetailsReturnPage] = useState("search");
 const [selectedVehicle, setSelectedVehicle] = useState(null);
+const [vehicleDetailsReturnPage, setVehicleDetailsReturnPage] = useState("vehicules");
   const [nouveauFaitDate, setNouveauFaitDate] = useState("");
   const [nouveauFaitDescription, setNouveauFaitDescription] = useState("");
     useEffect(() => {
@@ -367,6 +368,7 @@ const chargerVehicules = async () => {
   photos: item.photos || [],
   photo_principale_index:
     item.photo_principale_index || 0,
+  favori_bac: item.favori_bac || false,
 }));
 
   setVehicules(vehiculesFormates);
@@ -494,6 +496,56 @@ const chargerJournalModifications = async () => {
     }
 
     await chargerJournalModifications();
+  };
+
+  const basculerFavoriIdentite = async (person) => {
+    const nouveauStatut = !person.favori_bac;
+
+    const { error } = await supabase
+      .from("identites")
+      .update({ favori_bac: nouveauStatut })
+      .eq("id", person.id);
+
+    if (error) {
+      alert("Erreur favori identité : " + error.message);
+      return;
+    }
+
+    const identiteMaj = { ...person, favori_bac: nouveauStatut };
+    setSelectedIdentity((current) =>
+      current && String(current.id) === String(person.id) ? identiteMaj : current
+    );
+    await chargerIdentites();
+    ajouterHistorique(
+      `${nouveauStatut ? "Épinglage" : "Retrait favori"} identité BAC : ${getLibelleIdentite(person)}`,
+      "identite",
+      person.id
+    );
+  };
+
+  const basculerFavoriVehicule = async (item) => {
+    const nouveauStatut = !item.favori_bac;
+
+    const { error } = await supabase
+      .from("vehicules")
+      .update({ favori_bac: nouveauStatut })
+      .eq("id", item.id);
+
+    if (error) {
+      alert("Erreur favori véhicule : " + error.message);
+      return;
+    }
+
+    const vehiculeMaj = { ...item, favori_bac: nouveauStatut };
+    setSelectedVehicle((current) =>
+      current && String(current.id) === String(item.id) ? vehiculeMaj : current
+    );
+    await chargerVehicules();
+    ajouterHistorique(
+      `${nouveauStatut ? "Épinglage" : "Retrait favori"} véhicule BAC : ${getNomVehicule(item)}`,
+      "vehicule",
+      item.id
+    );
   };
 
   const viderHistorique = async () => {
@@ -1275,6 +1327,13 @@ const handleVehiculePhoto = async (e) => {
                 <div className="person-actions">
                   <button
                     className="edit-btn"
+                    onClick={() => basculerFavoriVehicule(item)}
+                  >
+                    {item.favori_bac ? "Retirer BAC" : "Épingler BAC"}
+                  </button>
+
+                  <button
+                    className="edit-btn"
                     onClick={() => modifierVehicule(item)}
                   >
                     Modifier
@@ -1423,6 +1482,7 @@ if (page === "identityDetails" && selectedIdentity) {
         {person.secteur && <p>Secteur habituel : {person.secteur}</p>}
         {person.faits && <p>Secteur faits : {person.faits}</p>}
         {person.observations && <p>Observations : {person.observations}</p>}
+        {person.favori_bac && <p>Favori BAC : oui</p>}
 
         {personPhotos.length > 0 && (
           <div className="photos-grid">
@@ -1500,6 +1560,7 @@ if (page === "identityDetails" && selectedIdentity) {
             key={item.id}
             onClick={() => {
               setSelectedVehicle(item);
+              setVehicleDetailsReturnPage("identityDetails");
               setPage("vehicleDetails");
             }}
           >
@@ -1521,6 +1582,10 @@ if (page === "identityDetails" && selectedIdentity) {
       </div>
 
       <div className="person-actions">
+        <button className="edit-btn" onClick={() => basculerFavoriIdentite(person)}>
+          {person.favori_bac ? "Retirer BAC" : "Épingler BAC"}
+        </button>
+
         <button className="edit-btn" onClick={() => modifierIdentite(person)}>
           Modifier
         </button>
@@ -1644,6 +1709,7 @@ if (page === "identityDetails" && selectedIdentity) {
                       className="person-alias"
                       onClick={() => {
                         setSelectedVehicle(item);
+                        setVehicleDetailsReturnPage("secteurs");
                         setPage("vehicleDetails");
                       }}
                     >
@@ -1689,6 +1755,7 @@ if (page === "identityDetails" && selectedIdentity) {
               key={item.id}
               onClick={() => {
                 setSelectedVehicle(item);
+                setVehicleDetailsReturnPage("vehicules");
                 setPage("vehicleDetails");
               }}
             >
@@ -1746,6 +1813,16 @@ if (page === "identityDetails" && selectedIdentity) {
                     className="edit-btn"
                     onClick={(e) => {
                       e.stopPropagation();
+                      basculerFavoriVehicule(item);
+                    }}
+                  >
+                    {item.favori_bac ? "Retirer BAC" : "Épingler BAC"}
+                  </button>
+
+                  <button
+                    className="edit-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       modifierVehicule(item);
                     }}
                   >
@@ -1787,7 +1864,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
     return (
       <div className="home-page">
-        <button className="back-btn" onClick={() => setPage("vehicules")}>
+        <button className="back-btn" onClick={() => setPage(vehicleDetailsReturnPage)}>
           ← Retour
         </button>
 
@@ -1827,6 +1904,7 @@ if (page === "identityDetails" && selectedIdentity) {
           {item.faits && <p>Faits : {item.faits}</p>}
           {item.fuite && <p>Direction fuite : {item.fuite}</p>}
           {item.observations && <p>Observations : {item.observations}</p>}
+          {item.favori_bac && <p>Favori BAC : oui</p>}
         </div>
 
         {identiteLiee && (
@@ -1865,6 +1943,10 @@ if (page === "identityDetails" && selectedIdentity) {
         )}
 
         <div className="person-actions">
+          <button className="edit-btn" onClick={() => basculerFavoriVehicule(item)}>
+            {item.favori_bac ? "Retirer BAC" : "Épingler BAC"}
+          </button>
+
           <button className="edit-btn" onClick={() => modifierVehicule(item)}>
             Modifier
           </button>
@@ -2200,6 +2282,16 @@ if (page === "identityDetails" && selectedIdentity) {
                 )}
 
                 <div className="person-actions">
+                  <button
+                    className="edit-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      basculerFavoriIdentite(person);
+                    }}
+                  >
+                    {person.favori_bac ? "Retirer BAC" : "Épingler BAC"}
+                  </button>
+
                   <button
                     className="edit-btn"
                     onClick={(e) => {
@@ -2629,6 +2721,106 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  if (page === "favorisBac") {
+    const identitesFavorites = identites.filter((person) => person.favori_bac);
+    const vehiculesFavoris = vehicules.filter((item) => item.favori_bac);
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("home")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Favoris BAC</h2>
+
+        <div className="admin-card">
+          <h3>Individus prioritaires</h3>
+          {identitesFavorites.length === 0 && <p>Aucun individu épinglé.</p>}
+
+          {identitesFavorites.map((person) => (
+            <div
+              className="person-card"
+              key={person.id}
+              onClick={() => {
+                setSelectedIdentity(person);
+                setIdentityDetailsReturnPage("favorisBac");
+                setPage("identityDetails");
+              }}
+            >
+              <div className="avatar">
+                {getPhotoPrincipale(person) ? (
+                  <img
+                    src={getPhotoPrincipale(person)}
+                    alt="photo"
+                    className="person-photo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPhotoZoom(getPhotoPrincipale(person));
+                    }}
+                  />
+                ) : (
+                  "👤"
+                )}
+              </div>
+
+              <div className="person-info">
+                <div className="person-name">{getLibelleIdentite(person)}</div>
+                {person.alias && <div className="person-alias">Alias : {person.alias}</div>}
+                {person.secteur && <div>Secteur habituel : {person.secteur}</div>}
+                {person.faits && <div>Secteur faits : {person.faits}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="admin-card">
+          <h3>Véhicules recherchés</h3>
+          {vehiculesFavoris.length === 0 && <p>Aucun véhicule épinglé.</p>}
+
+          {vehiculesFavoris.map((item) => (
+            <div
+              className="person-card"
+              key={item.id}
+              onClick={() => {
+                setSelectedVehicle(item);
+                setVehicleDetailsReturnPage("favorisBac");
+                setPage("vehicleDetails");
+              }}
+            >
+              <div className="avatar">
+                {item.photo ? (
+                  <img
+                    src={item.photo}
+                    alt="véhicule"
+                    className="person-photo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPhotoZoom(item.photo);
+                    }}
+                  />
+                ) : (
+                  "🚗"
+                )}
+              </div>
+
+              <div className="person-info">
+                <div className="person-name">{getNomVehicule(item)}</div>
+                {item.couleur && <div>Couleur : {item.couleur}</div>}
+                {item.secteur && <div>Secteur : {item.secteur}</div>}
+                {item.faits && <div>Faits : {item.faits}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <PhotoZoomOverlay
+          photoZoom={photoZoom}
+          onClose={() => setPhotoZoom("")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="home-page">
       <div className="top-bar">
@@ -2665,6 +2857,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("secteurs")}>
           📍
           <span>Secteurs</span>
+        </div>
+
+        <div className="menu-card" onClick={() => setPage("favorisBac")}>
+          ⭐
+          <span>Favoris BAC</span>
         </div>
 
         {currentUser &&
