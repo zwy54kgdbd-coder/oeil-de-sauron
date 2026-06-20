@@ -99,6 +99,18 @@ function formatDateFr(value) {
   return date.toLocaleDateString("fr-FR");
 }
 
+function formatHeureFr(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleTimeString("fr-FR");
+}
+
 function PhotoZoomOverlay({ photoZoom, onClose }) {
   if (!photoZoom) return null;
 
@@ -225,6 +237,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   chargerIdentites();
   chargerVehicules();
   chargerFaitsIdentites();
+  chargerJournalModifications();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -271,10 +284,26 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const journalModificationsChannel = supabase
+    .channel("realtime-journal-modifications")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "journal_modifications",
+      },
+      () => {
+        chargerJournalModifications();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
     supabase.removeChannel(faitsIdentitesChannel);
+    supabase.removeChannel(journalModificationsChannel);
   };
 }, []);
 
@@ -390,6 +419,20 @@ const supprimerFaitIdentite = async (id) => {
   await chargerFaitsIdentites();
 };
 
+const chargerJournalModifications = async () => {
+  const { data, error } = await supabase
+    .from("journal_modifications")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR JOURNAL MODIFICATIONS :", error);
+    return;
+  }
+
+  setHistorique(data || []);
+};
+
   const saveUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     localStorage.setItem("users", JSON.stringify(updatedUsers));
@@ -405,23 +448,26 @@ const supprimerFaitIdentite = async (id) => {
     localStorage.setItem("vehicules", JSON.stringify(updatedVehicules));
   };
 
-  const ajouterHistorique = (action) => {
-    const now = new Date();
+  const ajouterHistorique = async (action, typeObjet = "", objetId = null) => {
+    const { error } = await supabase.from("journal_modifications").insert([
+      {
+        username: currentUser?.username || "Inconnu",
+        action,
+        type_objet: typeObjet,
+        objet_id: objetId ? String(objetId) : null,
+        details: action,
+      },
+    ]);
 
-    const entree = {
-      id: Date.now(),
-      action,
-      utilisateur: currentUser?.username || "Inconnu",
-      date: now.toLocaleDateString(),
-      heure: now.toLocaleTimeString(),
-    };
+    if (error) {
+      console.log("ERREUR AJOUT JOURNAL :", error);
+      return;
+    }
 
-    const updated = [entree, ...historique];
-    setHistorique(updated);
-    localStorage.setItem("historique", JSON.stringify(updated));
+    await chargerJournalModifications();
   };
 
-  const viderHistorique = () => {
+  const viderHistorique = async () => {
     if (currentUser?.role !== "LE TÔLIER") {
       alert("Seul le Tôlier peut vider l'historique.");
       return;
@@ -433,8 +479,17 @@ const supprimerFaitIdentite = async (id) => {
 
     if (!confirmation) return;
 
+    const { error } = await supabase
+      .from("journal_modifications")
+      .delete()
+      .neq("id", 0);
+
+    if (error) {
+      alert("Erreur suppression historique : " + error.message);
+      return;
+    }
+
     setHistorique([]);
-    localStorage.setItem("historique", JSON.stringify([]));
   };
 
  const connexion = async () => {
@@ -2330,9 +2385,11 @@ if (page === "identityDetails" && selectedIdentity) {
 
               <div className="person-info">
                 <div className="person-name">{item.action}</div>
-                <div>Utilisateur : {item.utilisateur}</div>
-                <div>Date : {item.date}</div>
-                <div>Heure : {item.heure}</div>
+                <div>Utilisateur : {item.username || item.utilisateur || "Inconnu"}</div>
+                <div>Date : {formatDateFr(item.created_at) || item.date}</div>
+                <div>Heure : {formatHeureFr(item.created_at) || item.heure}</div>
+                {item.type_objet && <div>Type : {item.type_objet}</div>}
+                {item.objet_id && <div>ID : {item.objet_id}</div>}
               </div>
             </div>
           ))}
