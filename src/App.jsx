@@ -204,6 +204,7 @@ const [telephone, setTelephone] = useState("");
   const [photoPrincipaleIndex, setPhotoPrincipaleIndex] = useState(0);
   const [photoZoom, setPhotoZoom] = useState("");
   const [selectedIdentity, setSelectedIdentity] = useState(null);
+  const [identityDetailsReturnPage, setIdentityDetailsReturnPage] = useState("search");
 const [selectedVehicle, setSelectedVehicle] = useState(null);
     useEffect(() => {
   chargerIdentites();
@@ -1090,6 +1091,7 @@ const handleVehiculePhoto = async (e) => {
               key={person.id}
               onClick={() => {
                 setSelectedIdentity(person);
+                setIdentityDetailsReturnPage("search");
                 setPage("identityDetails");
               }}
             >
@@ -1181,7 +1183,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
   return (
     <div className="home-page">
-      <button className="back-btn" onClick={() => setPage("search")}>
+      <button className="back-btn" onClick={() => setPage(identityDetailsReturnPage)}>
         ← Retour
       </button>
 
@@ -1336,6 +1338,7 @@ if (page === "identityDetails" && selectedIdentity) {
                       className="person-alias"
                       onClick={() => {
                         setSelectedIdentity(person);
+                        setIdentityDetailsReturnPage("secteurs");
                         setPage("identityDetails");
                       }}
                     >
@@ -1510,6 +1513,7 @@ if (page === "identityDetails" && selectedIdentity) {
               className="person-card"
               onClick={() => {
                 setSelectedIdentity(identiteLiee);
+                setIdentityDetailsReturnPage("vehicleDetails");
                 setPage("identityDetails");
               }}
             >
@@ -1824,6 +1828,7 @@ if (page === "identityDetails" && selectedIdentity) {
               key={person.id}
               onClick={() => {
                 setSelectedIdentity(person);
+                setIdentityDetailsReturnPage("individus");
                 setPage("identityDetails");
               }}
             >
