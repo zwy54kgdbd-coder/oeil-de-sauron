@@ -1370,14 +1370,24 @@ if (page === "identityDetails" && selectedIdentity) {
           )}
 
           {vehicules.map((item) => (
-            <div className="person-card" key={item.id}>
+            <div
+              className="person-card"
+              key={item.id}
+              onClick={() => {
+                setSelectedVehicle(item);
+                setPage("vehicleDetails");
+              }}
+            >
               <div className="avatar">
   {item.photo ? (
     <img
       src={item.photo}
       alt="véhicule"
       className="person-photo"
-      onClick={() => setPhotoZoom(item.photo)}
+      onClick={(e) => {
+        e.stopPropagation();
+        setPhotoZoom(item.photo);
+      }}
     />
   ) : (
     "🚗"
@@ -1403,11 +1413,12 @@ if (page === "identityDetails" && selectedIdentity) {
                         src={getPhotoPrincipale(getIdentite(identites, item.individuId) || {})}
                         alt="photo identité liée"
                         className="linked-identity-photo clickable-photo"
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setPhotoZoom(
                             getPhotoPrincipale(getIdentite(identites, item.individuId) || {})
-                          )
-                        }
+                          );
+                        }}
                       />
                     )}
                     <span className="person-alias">
@@ -1419,7 +1430,10 @@ if (page === "identityDetails" && selectedIdentity) {
                 <div className="person-actions">
                   <button
                     className="edit-btn"
-                    onClick={() => modifierVehicule(item)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      modifierVehicule(item);
+                    }}
                   >
                     Modifier
                   </button>
@@ -1427,7 +1441,10 @@ if (page === "identityDetails" && selectedIdentity) {
                   {currentUser?.role !== "MEMBRE" && (
                     <button
                       className="delete-btn"
-                      onClick={() => supprimerVehicule(item.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        supprimerVehicule(item.id);
+                      }}
                     >
                       Supprimer
                     </button>
@@ -1441,6 +1458,94 @@ if (page === "identityDetails" && selectedIdentity) {
           photoZoom={photoZoom}
           onClose={() => setPhotoZoom("")}
         />
+      </div>
+    );
+	  }
+
+  if (page === "vehicleDetails" && selectedVehicle) {
+    const item = selectedVehicle;
+    const identiteLiee = getIdentite(identites, item.individuId);
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("vehicules")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Fiche véhicule</h2>
+
+        <div className="admin-card">
+          {item.photo && (
+            <img
+              src={item.photo}
+              alt="véhicule"
+              className="photo-preview"
+              onClick={() => setPhotoZoom(item.photo)}
+            />
+          )}
+
+          <h3>{getNomVehicule(item)}</h3>
+
+          {item.marque && <p>Marque : {item.marque}</p>}
+          {item.modele && <p>Modèle : {item.modele}</p>}
+          {item.couleur && <p>Couleur : {item.couleur}</p>}
+          {item.plaque && <p>Immatriculation : {item.plaque}</p>}
+          {item.secteur && <p>Secteur : {item.secteur}</p>}
+          {item.faits && <p>Faits : {item.faits}</p>}
+          {item.fuite && <p>Direction fuite : {item.fuite}</p>}
+          {item.observations && <p>Observations : {item.observations}</p>}
+        </div>
+
+        {identiteLiee && (
+          <div className="admin-card">
+            <h3>Identité liée</h3>
+            <div
+              className="person-card"
+              onClick={() => {
+                setSelectedIdentity(identiteLiee);
+                setPage("identityDetails");
+              }}
+            >
+              <div className="avatar">
+                {getPhotoPrincipale(identiteLiee) ? (
+                  <img
+                    src={getPhotoPrincipale(identiteLiee)}
+                    alt="photo"
+                    className="person-photo"
+                  />
+                ) : (
+                  "👤"
+                )}
+              </div>
+
+              <div className="person-info">
+                <div className="person-name">
+                  {identiteLiee.nom} {identiteLiee.prenom}
+                </div>
+                {identiteLiee.alias && (
+                  <div className="person-alias">Alias : {identiteLiee.alias}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="person-actions">
+          <button className="edit-btn" onClick={() => modifierVehicule(item)}>
+            Modifier
+          </button>
+
+          {currentUser?.role !== "MEMBRE" && (
+            <button
+              className="delete-btn"
+              onClick={() => supprimerVehicule(item.id)}
+            >
+              Supprimer
+            </button>
+          )}
+        </div>
+
+        <PhotoZoomOverlay photoZoom={photoZoom} onClose={() => setPhotoZoom("")} />
       </div>
     );
   }
@@ -1707,14 +1812,24 @@ if (page === "identityDetails" && selectedIdentity) {
           )}
 
           {!search && identites.map((person) => (
-            <div className="person-card" key={person.id}>
+            <div
+              className="person-card"
+              key={person.id}
+              onClick={() => {
+                setSelectedIdentity(person);
+                setPage("identityDetails");
+              }}
+            >
               <div className="avatar">
   {getPhotoPrincipale(person) ? (
     <img
       src={getPhotoPrincipale(person)}
       alt="photo"
       className="person-photo"
-      onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+      onClick={(e) => {
+        e.stopPropagation();
+        setPhotoZoom(getPhotoPrincipale(person));
+      }}
     />
   ) : (
     "👤"
@@ -1752,7 +1867,10 @@ if (page === "identityDetails" && selectedIdentity) {
                 <div className="person-actions">
                   <button
                     className="edit-btn"
-                    onClick={() => modifierIdentite(person)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      modifierIdentite(person);
+                    }}
                   >
                     Modifier
                   </button>
@@ -1760,7 +1878,10 @@ if (page === "identityDetails" && selectedIdentity) {
                   {currentUser?.role !== "MEMBRE" && (
                     <button
                       className="delete-btn"
-                      onClick={() => supprimerIdentite(person.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        supprimerIdentite(person.id);
+                      }}
                     >
                       Supprimer
                     </button>
