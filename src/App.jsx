@@ -52,6 +52,16 @@ function getNomIdentite(identites, individuId) {
   return `${person.nom || ""} ${person.prenom || ""}`.trim();
 }
 
+function getLibelleIdentite(person) {
+  if (!person) return "Identité inconnue";
+
+  return (
+    `${person.nom || ""} ${person.prenom || ""}`.trim() ||
+    person.alias ||
+    "Identité sans nom"
+  );
+}
+
 function getIdentite(identites, individuId) {
   return identites.find((item) => String(item.id) === String(individuId));
 }
@@ -383,11 +393,15 @@ const ajouterFaitIdentite = async (identiteId) => {
     return;
   }
 
+  const identite = getIdentite(identites, identiteId);
+  const libelleIdentite = getLibelleIdentite(identite);
+  const descriptionFait = nouveauFaitDescription.trim();
+
   const { error } = await supabase.from("faits_identites").insert([
     {
       identite_id: identiteId,
       date_fait: nouveauFaitDate,
-      description: nouveauFaitDescription.trim(),
+      description: descriptionFait,
       created_by: currentUser?.username || "",
     },
   ]);
@@ -400,9 +414,18 @@ const ajouterFaitIdentite = async (identiteId) => {
   setNouveauFaitDate("");
   setNouveauFaitDescription("");
   await chargerFaitsIdentites();
+  ajouterHistorique(
+    `Ajout fait sur : ${libelleIdentite} — ${descriptionFait}`,
+    "fait_identite",
+    identiteId
+  );
 };
 
 const supprimerFaitIdentite = async (id) => {
+  const fait = faitsIdentites.find((item) => String(item.id) === String(id));
+  const identite = fait ? getIdentite(identites, fait.identite_id) : null;
+  const libelleIdentite = getLibelleIdentite(identite);
+
   const confirmation = window.confirm("Supprimer ce fait ?");
 
   if (!confirmation) return;
@@ -418,6 +441,11 @@ const supprimerFaitIdentite = async (id) => {
   }
 
   await chargerFaitsIdentites();
+  ajouterHistorique(
+    `Suppression fait sur : ${libelleIdentite}${fait?.description ? ` — ${fait.description}` : ""}`,
+    "fait_identite",
+    fait?.identite_id || id
+  );
 };
 
 const chargerJournalModifications = async () => {
@@ -614,10 +642,20 @@ telephone,
 
   await chargerIdentites();
 
+  const identiteEnregistree = result.data?.[0];
+  const identiteId = editingId || identiteEnregistree?.id;
+  const libelleIdentite = getLibelleIdentite({
+    nom,
+    prenom,
+    alias,
+  });
+
   ajouterHistorique(
     editingId
-      ? `Modification identité : ${nom} ${prenom}`
-      : `Création identité : ${nom} ${prenom}`
+      ? `Modification identité : ${libelleIdentite}`
+      : `Création identité : ${libelleIdentite}`,
+    "identite",
+    identiteId
   );
 
   resetIdentityForm();
@@ -665,6 +703,9 @@ setTelephone(person.telephone || "");
 
   if (!confirmation) return;
 
+  const identiteSupprimee = identites.find((item) => String(item.id) === String(id));
+  const libelleIdentite = getLibelleIdentite(identiteSupprimee);
+
   const { error } = await supabase
     .from("identites")
     .delete()
@@ -675,7 +716,11 @@ setTelephone(person.telephone || "");
     return;
   }
 
-  ajouterHistorique("Suppression identité");
+  ajouterHistorique(
+    `Suppression identité : ${libelleIdentite}`,
+    "identite",
+    id
+  );
 };
 
 
@@ -803,10 +848,20 @@ photo_principale_index: vehiculePhotoPrincipaleIndex,
 
   await chargerVehicules();
 
+  const vehiculeEnregistre = result.data?.[0];
+  const vehiculeId = editingVehiculeId || vehiculeEnregistre?.id;
+  const libelleVehicule = getNomVehicule({
+    marque: vehiculeMarque,
+    modele: vehiculeModele,
+    plaque: vehiculePlaque,
+  });
+
   ajouterHistorique(
     editingVehiculeId
-      ? `Modification véhicule : ${vehiculeMarque} ${vehiculeModele}`
-      : `Création véhicule : ${vehiculeMarque} ${vehiculeModele}`
+      ? `Modification véhicule : ${libelleVehicule}`
+      : `Création véhicule : ${libelleVehicule}`,
+    "vehicule",
+    vehiculeId
   );
 
   resetVehiculeForm();
@@ -837,6 +892,9 @@ setVehiculePhotoPrincipaleIndex(item.photo_principale_index || 0);
 
   if (!confirmation) return;
 
+  const vehiculeSupprime = vehicules.find((item) => String(item.id) === String(id));
+  const libelleVehicule = getNomVehicule(vehiculeSupprime || {});
+
   const { error } = await supabase
     .from("vehicules")
     .delete()
@@ -847,7 +905,11 @@ setVehiculePhotoPrincipaleIndex(item.photo_principale_index || 0);
     return;
   }
 
-  ajouterHistorique("Suppression véhicule");
+  ajouterHistorique(
+    `Suppression véhicule : ${libelleVehicule}`,
+    "vehicule",
+    id
+  );
 };
   const handlePhoto = async (e) => {
   const files = Array.from(e.target.files || []);
