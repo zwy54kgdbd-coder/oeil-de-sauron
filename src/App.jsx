@@ -211,6 +211,7 @@ const [nouvelleIdentiteTelephone, setNouvelleIdentiteTelephone] = useState("");
 
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
+  const [rechercheSecteur, setRechercheSecteur] = useState("");
   const [typeSecteur, setTypeSecteur] = useState("habituel");
 
   const [nom, setNom] = useState("");
@@ -1477,12 +1478,20 @@ if (page === "identityDetails" && selectedIdentity) {
   );
 }
   if (page === "secteurs") {
-    const secteurs =
+    const rechercheSecteurClean = rechercheSecteur.trim().toLowerCase();
+    const secteursIdentites =
       typeSecteur === "habituel"
         ? identites.map((person) => person.secteur).filter(Boolean)
         : identites.map((person) => person.faits).filter(Boolean);
+    const secteursVehicules =
+      typeSecteur === "habituel"
+        ? vehicules.map((item) => item.secteur).filter(Boolean)
+        : vehicules.map((item) => item.faits).filter(Boolean);
 
-    const secteursUniques = [...new Set(secteurs)];
+    const secteursUniques = [...new Set([...secteursIdentites, ...secteursVehicules])]
+      .filter((secteurNom) =>
+        secteurNom.toLowerCase().includes(rechercheSecteurClean)
+      );
 
     return (
       <div className="home-page">
@@ -1491,6 +1500,14 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
 
         <h2 className="section-title">Secteurs</h2>
+
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Rechercher un secteur..."
+          value={rechercheSecteur}
+          onChange={(e) => setRechercheSecteur(e.target.value)}
+        />
 
         <div className="sector-switch">
           <button
@@ -1511,7 +1528,7 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="results-list">
           {secteursUniques.length === 0 && (
             <div className="admin-card">
-              Aucun secteur enregistré.
+              Aucun secteur trouvé.
             </div>
           )}
 
@@ -1521,6 +1538,11 @@ if (page === "identityDetails" && selectedIdentity) {
                 ? person.secteur === secteurNom
                 : person.faits === secteurNom
             );
+            const vehiculesSecteur = vehicules.filter((item) =>
+              typeSecteur === "habituel"
+                ? item.secteur === secteurNom
+                : item.faits === secteurNom
+            );
 
             return (
               <div className="person-card" key={secteurNom}>
@@ -1528,7 +1550,13 @@ if (page === "identityDetails" && selectedIdentity) {
 
                 <div className="person-info">
                   <div className="person-name">{secteurNom}</div>
-                  <div>Individus liés : {personnes.length}</div>
+                  <div>
+                    {personnes.length} individu{personnes.length > 1 ? "s" : ""} /{" "}
+                    {vehiculesSecteur.length} véhicule{vehiculesSecteur.length > 1 ? "s" : ""}
+                  </div>
+
+                  <div className="person-alias">Individus</div>
+                  {personnes.length === 0 && <div>Aucun individu lié.</div>}
 
                   {personnes.map((person) => (
                     <div
@@ -1542,6 +1570,22 @@ if (page === "identityDetails" && selectedIdentity) {
                     >
                       {person.nom} {person.prenom}
                       {person.alias ? ` — ${person.alias}` : ""}
+                    </div>
+                  ))}
+
+                  <div className="person-alias">Véhicules</div>
+                  {vehiculesSecteur.length === 0 && <div>Aucun véhicule lié.</div>}
+
+                  {vehiculesSecteur.map((item) => (
+                    <div
+                      key={item.id}
+                      className="person-alias"
+                      onClick={() => {
+                        setSelectedVehicle(item);
+                        setPage("vehicleDetails");
+                      }}
+                    >
+                      {getNomVehicule(item)}
                     </div>
                   ))}
                 </div>
