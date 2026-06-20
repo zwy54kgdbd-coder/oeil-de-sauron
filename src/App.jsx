@@ -203,6 +203,8 @@ const [telephone, setTelephone] = useState("");
   const [photos, setPhotos] = useState([]);
   const [photoPrincipaleIndex, setPhotoPrincipaleIndex] = useState(0);
   const [photoZoom, setPhotoZoom] = useState("");
+  const [selectedIdentity, setSelectedIdentity] = useState(null);
+const [selectedVehicle, setSelectedVehicle] = useState(null);
     useEffect(() => {
   chargerIdentites();
   chargerVehicules();
@@ -352,32 +354,34 @@ const chargerVehicules = async () => {
 
   const loginClean = username.trim().toLowerCase();
 
-  const email =
-    loginClean === "tolier"
-      ? "tayeb.berkouk.tbt@gmail.com"
-      : `${loginClean}@oeildesauron.com`;
+const { data: profil, error: profilError } = await supabase
+  .from("users")
+  .select("*")
+  .eq("username", loginClean)
+  .single();
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+if (profilError) {
+  alert("Profil utilisateur introuvable.");
+  return;
+}
+
+const email =
+  profil.auth_email ||
+  (loginClean === "tolier"
+    ? "tayeb.berkouk.tbt@gmail.com"
+    : `${loginClean}@oeildesauron.com`);
+
+const { data, error } = await supabase.auth.signInWithPassword({
+  email,
+  password,
+});
 
   if (error) {
     alert("Identifiant ou mot de passe incorrect.");
     return;
   }
 
-  const { data: profil, error: profilError } = await supabase
-    .from("users")
-    .select("*")
-    .eq("username", loginClean)
-    .single();
-
-  if (profilError) {
-    console.log("ERREUR PROFIL :", profilError);
-    alert("Connexion réussie, mais profil utilisateur introuvable.");
-    return;
-  }
+  
 
   setSession(data.session);
   setCurrentUser(profil);
@@ -918,19 +922,14 @@ const handleVehiculePhoto = async (e) => {
 
   if (!confirmation) return;
 
-  const response = await fetch("/api/delete-user", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ username }),
-  });
+  const { error } = await supabase
+    .from("users")
+    .delete()
+    .eq("username", username);
 
-  const result = await response.json();
-
-  if (!response.ok) {
-    console.error("ERREUR SUPPRESSION UTILISATEUR :", result);
-    alert("Erreur suppression utilisateur : " + result.error);
+  if (error) {
+    console.error("ERREUR SUPPRESSION SUPABASE :", error);
+    alert("Erreur suppression Supabase : " + error.message);
     return;
   }
 
@@ -1157,7 +1156,110 @@ const handleVehiculePhoto = async (e) => {
       </div>
     );
   }
+if (page === "identityDetails" && selectedIdentity) {
+  const person = selectedIdentity;
+  const personPhotos = getPhotos(person);
+  const vehiculesLies = vehicules.filter(
+    (item) => String(item.individuId) === String(person.id)
+  );
 
+  return (
+    <div className="home-page">
+      <button className="back-btn" onClick={() => setPage("search")}>
+        ← Retour
+      </button>
+
+      <h2 className="section-title">Fiche identité</h2>
+
+      <div className="admin-card">
+        {getPhotoPrincipale(person) && (
+          <img
+            src={getPhotoPrincipale(person)}
+            alt="photo"
+            className="photo-preview"
+            onClick={() => setPhotoZoom(getPhotoPrincipale(person))}
+          />
+        )}
+
+        <h3>
+          {person.nom} {person.prenom}
+        </h3>
+
+        {person.alias && <p>Alias : {person.alias}</p>}
+        {person.naissance && <p>Date de naissance : {person.naissance}</p>}
+        {person.naissance && <p>Âge : {getAge(person.naissance)} ans</p>}
+        {person.lieu_naissance && <p>Lieu de naissance : {person.lieu_naissance}</p>}
+        {person.domicile && <p>Domicile : {person.domicile}</p>}
+        {person.telephone && <p>Téléphone : {person.telephone}</p>}
+        {person.secteur && <p>Secteur habituel : {person.secteur}</p>}
+        {person.faits && <p>Secteur faits : {person.faits}</p>}
+        {person.observations && <p>Observations : {person.observations}</p>}
+
+        {personPhotos.length > 0 && (
+          <div className="photos-grid">
+            {personPhotos.map((item, index) => (
+              <img
+                key={index}
+                src={item}
+                alt={`photo ${index + 1}`}
+                className="person-photo"
+                onClick={() => setPhotoZoom(item)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="admin-card">
+        <h3>Véhicules liés</h3>
+
+        {vehiculesLies.length === 0 && <p>Aucun véhicule lié.</p>}
+
+        {vehiculesLies.map((item) => (
+          <div
+            className="person-card"
+            key={item.id}
+            onClick={() => {
+              setSelectedVehicle(item);
+              setPage("vehicleDetails");
+            }}
+          >
+            <div className="avatar">
+              {item.photo ? (
+                <img src={item.photo} alt="véhicule" className="person-photo" />
+              ) : (
+                "🚗"
+              )}
+            </div>
+
+            <div className="person-info">
+              <div className="person-name">{getNomVehicule(item)}</div>
+              {item.couleur && <div>Couleur : {item.couleur}</div>}
+              {item.secteur && <div>Secteur : {item.secteur}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="person-actions">
+        <button className="edit-btn" onClick={() => modifierIdentite(person)}>
+          Modifier
+        </button>
+
+        {currentUser?.role !== "MEMBRE" && (
+          <button
+            className="delete-btn"
+            onClick={() => supprimerIdentite(person.id)}
+          >
+            Supprimer
+          </button>
+        )}
+      </div>
+
+      <PhotoZoomOverlay photoZoom={photoZoom} onClose={() => setPhotoZoom("")} />
+    </div>
+  );
+}
   if (page === "secteurs") {
     const secteurs =
       typeSecteur === "habituel"
