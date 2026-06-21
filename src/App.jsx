@@ -3509,6 +3509,7 @@ if (page === "identityDetails" && selectedIdentity) {
               const fichesMois = interpellationsAnnee.filter(
                 (item) => getInterpellationMonth(item) === index
               );
+              const statsMois = statsInfractions(fichesMois);
 
               return (
                 <div
@@ -3536,6 +3537,12 @@ if (page === "identityDetails" && selectedIdentity) {
                     <div className="important-amount">
                       Interpellés : {totalInterpelles(fichesMois)}
                     </div>
+                    {statsMois.length === 0 && <div>Aucune infraction enregistrée.</div>}
+                    {statsMois.map(([infraction, total]) => (
+                      <div key={infraction}>
+                        {infraction} : {total}
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
