@@ -6,10 +6,14 @@ create table if not exists public.p4_conges (
   date_fin date not null,
   type text not null,
   statut text not null default 'demande',
+  nature text not null default 'demande',
   commentaire text,
   created_by text,
   updated_by text
 );
+
+alter table public.p4_conges
+add column if not exists nature text not null default 'demande';
 
 alter table public.p4_conges enable row level security;
 

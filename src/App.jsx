@@ -160,6 +160,16 @@ function getP4TypeCourt(type) {
   return type === "CA en cours" ? "CA" : type;
 }
 
+function getP4Nature(item) {
+  if (item?.nature) return item.nature;
+  if (["demande", "previsionnel"].includes(item?.statut)) return item.statut;
+  return "demande";
+}
+
+function getP4NatureLabel(item) {
+  return getP4Nature(item) === "previsionnel" ? "Prévisionnel" : "Demande";
+}
+
 function normaliserPlaque(value) {
   return (value || "")
     .trim()
@@ -1358,6 +1368,7 @@ const chargerP4Conges = async () => {
       date_fin: periode.date_fin,
       type: periode.type,
       statut,
+      nature: statut === "previsionnel" ? "previsionnel" : p4FormMode,
       commentaire: relanceRefus
         ? [
             `Ancienne demande : ${formatDateFr(editingP4Item?.date_debut)} au ${formatDateFr(editingP4Item?.date_fin)}`,
@@ -1421,6 +1432,7 @@ const chargerP4Conges = async () => {
       .from("p4_conges")
       .update({
         statut,
+        nature: item.nature || getP4Nature(item),
         updated_by: currentUser?.username || "Inconnu",
       })
       .eq("id", item.id);
@@ -4705,6 +4717,48 @@ if (page === "identityDetails" && selectedIdentity) {
     const p4DemandesUrgentes = p4ListeVisible.filter((item) =>
       ["demande", "previsionnel"].includes(item.statut)
     );
+    const p4DemandesEnCours = p4DemandesUrgentes.filter(
+      (item) => getP4Nature(item) === "demande"
+    );
+    const p4PrevisionnelsEnCours = p4DemandesUrgentes.filter(
+      (item) => getP4Nature(item) === "previsionnel"
+    );
+    const p4EnregistreParMois = [...p4ListeVisible]
+      .sort((a, b) => {
+        const dateCompare = (a.date_debut || "").localeCompare(b.date_debut || "");
+        if (dateCompare !== 0) return dateCompare;
+        return getP4CollegueLabel(a.collegue).localeCompare(
+          getP4CollegueLabel(b.collegue),
+          "fr",
+          { sensitivity: "base" }
+        );
+      })
+      .reduce((months, item) => {
+        const date = parseDateLocale(item.date_debut);
+        const moisKey = date
+          ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+          : "date-inconnue";
+        const moisLabel = date
+          ? `${MOIS_FR[date.getMonth()]} ${date.getFullYear()}`
+          : "Date inconnue";
+        const collegue = getP4CollegueLabel(item.collegue) || "Collègue inconnu";
+        let month = months.find((group) => group.key === moisKey);
+
+        if (!month) {
+          month = { key: moisKey, label: moisLabel, collegues: [] };
+          months.push(month);
+        }
+
+        let collegueGroup = month.collegues.find((group) => group.label === collegue);
+
+        if (!collegueGroup) {
+          collegueGroup = { label: collegue, items: [] };
+          month.collegues.push(collegueGroup);
+        }
+
+        collegueGroup.items.push(item);
+        return months;
+      }, []);
     const relanceP4RefusEnEdition =
       editingP4Item?.statut === "refuse" && !peutGererP4;
     const congesDuJour = (date, cycle) =>
@@ -4720,6 +4774,77 @@ if (page === "identityDetails" && selectedIdentity) {
       valide: "Validé",
       refuse: "Refusé",
     };
+    const renderP4Carte = (item, options = {}) => (
+      <div
+        className={`user-line p4-request ${item.statut} ${getP4Nature(item)}`}
+        key={item.id}
+      >
+        <div>
+          <strong>
+            {getP4CollegueLabel(item.collegue)} — {getP4TypeCourt(item.type)}
+          </strong>
+          <br />
+          {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
+          <br />
+          Nature : {getP4NatureLabel(item)}
+          <br />
+          Demandé le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
+          {item.created_by && (
+            <>
+              <br />
+              Par : {item.created_by}
+            </>
+          )}
+          <br />
+          Statut : {statutLabel[item.statut] || item.statut}
+          {item.commentaire && (
+            <>
+              <br />
+              {item.commentaire}
+            </>
+          )}
+        </div>
+
+        {peutModifierP4Item(item) && (
+          <div className="user-buttons">
+            <button className="edit-btn" onClick={() => modifierP4Conge(item)}>
+              Modifier
+            </button>
+            {peutGererP4 && options.showDecisionButtons && (
+              <>
+                <button
+                  className="edit-btn"
+                  onClick={() => changerStatutP4Conge(item, "valide")}
+                >
+                  Valider
+                </button>
+                <button
+                  className="delete-btn"
+                  onClick={() => changerStatutP4Conge(item, "refuse")}
+                >
+                  Refuser
+                </button>
+              </>
+            )}
+            {peutGererP4 && options.showStoredButtons && (
+              <>
+                {item.statut === "refuse" && (
+                  <button
+                    className="edit-btn"
+                    onClick={() => changerStatutP4Conge(item, "valide")}
+                  >
+                    Valider
+                  </button>
+                )}
+                <button className="delete-btn" onClick={() => supprimerP4Conge(item)}>
+                  Supprimer
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
 
     return (
       <div className="home-page">
@@ -4798,7 +4923,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
                       {lignesJour.map((item) => (
                         <div
-                          className={`p4-entry ${item.statut}`}
+                          className={`p4-entry ${item.statut} ${getP4Nature(item)}`}
                           key={`${item.id}-${toDateInputValue(day)}`}
                         >
                           <strong>{getP4CollegueLabel(item.collegue)}</strong>
@@ -4962,57 +5087,23 @@ if (page === "identityDetails" && selectedIdentity) {
 
           {p4DemandesUrgentes.length === 0 && <p>Aucune demande en attente.</p>}
 
-          {p4DemandesUrgentes.map((item) => (
-            <div className={`user-line p4-request ${item.statut}`} key={item.id}>
-              <div>
-                <strong>
-                  {getP4CollegueLabel(item.collegue)} — {getP4TypeCourt(item.type)}
-                </strong>
-                <br />
-                {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
-                <br />
-                Demandé le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
-                {item.created_by && (
-                  <>
-                    <br />
-                    Par : {item.created_by}
-                  </>
-                )}
-                <br />
-                Statut : {statutLabel[item.statut] || item.statut}
-                {item.commentaire && (
-                  <>
-                    <br />
-                    {item.commentaire}
-                  </>
-                )}
-              </div>
-
-              {peutModifierP4Item(item) && (
-                <div className="user-buttons">
-                  <button className="edit-btn" onClick={() => modifierP4Conge(item)}>
-                    Modifier
-                  </button>
-                  {peutGererP4 && (
-                    <>
-                      <button
-                        className="edit-btn"
-                        onClick={() => changerStatutP4Conge(item, "valide")}
-                      >
-                        Valider
-                      </button>
-                      <button
-                        className="delete-btn"
-                        onClick={() => changerStatutP4Conge(item, "refuse")}
-                      >
-                        Refuser
-                      </button>
-                    </>
-                  )}
-                </div>
+          <div className="p4-columns">
+            <div className="p4-column">
+              <h4>Demandes</h4>
+              {p4DemandesEnCours.length === 0 && <p>Aucune demande.</p>}
+              {p4DemandesEnCours.map((item) =>
+                renderP4Carte(item, { showDecisionButtons: true })
               )}
             </div>
-          ))}
+
+            <div className="p4-column">
+              <h4>Prévisionnels</h4>
+              {p4PrevisionnelsEnCours.length === 0 && <p>Aucun prévisionnel.</p>}
+              {p4PrevisionnelsEnCours.map((item) =>
+                renderP4Carte(item, { showDecisionButtons: true })
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="admin-card">
@@ -5020,48 +5111,18 @@ if (page === "identityDetails" && selectedIdentity) {
 
           {p4ListeVisible.length === 0 && <p>Aucune ligne P4 enregistrée.</p>}
 
-          {p4ListeVisible.map((item) => (
-            <div className={`user-line p4-request ${item.statut}`} key={item.id}>
-              <div>
-                <strong>
-                  {getP4CollegueLabel(item.collegue)} — {getP4TypeCourt(item.type)}
-                </strong>
-                <br />
-                {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
-                <br />
-                Demandé le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
-                {item.created_by && (
-                  <>
-                    <br />
-                    Par : {item.created_by}
-                  </>
-                )}
-                <br />
-                Statut : {statutLabel[item.statut] || item.statut}
-              </div>
+          {p4EnregistreParMois.map((mois) => (
+            <div className="p4-month-group" key={mois.key}>
+              <h4>{mois.label}</h4>
 
-              {peutModifierP4Item(item) && (
-                <div className="user-buttons">
-                  <button className="edit-btn" onClick={() => modifierP4Conge(item)}>
-                    Modifier
-                  </button>
-                  {peutGererP4 && (
-                    <>
-                      {item.statut === "refuse" && (
-                        <button
-                          className="edit-btn"
-                          onClick={() => changerStatutP4Conge(item, "valide")}
-                        >
-                          Valider
-                        </button>
-                      )}
-                      <button className="delete-btn" onClick={() => supprimerP4Conge(item)}>
-                        Supprimer
-                      </button>
-                    </>
+              {mois.collegues.map((collegueGroup) => (
+                <div className="p4-colleague-group" key={`${mois.key}-${collegueGroup.label}`}>
+                  <h5>{collegueGroup.label}</h5>
+                  {collegueGroup.items.map((item) =>
+                    renderP4Carte(item, { showStoredButtons: true })
                   )}
                 </div>
-              )}
+              ))}
             </div>
           ))}
         </div>

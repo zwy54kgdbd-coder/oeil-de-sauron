@@ -537,6 +537,12 @@ button {
   border-color: rgba(60, 190, 125, 0.75);
 }
 
+.p4-entry.valide.previsionnel,
+.p4-request.valide.previsionnel {
+  background: rgba(120, 95, 210, 0.24);
+  border-color: rgba(160, 135, 255, 0.85);
+}
+
 .p4-entry.refuse,
 .p4-request.refuse {
   background: rgba(130, 25, 25, 0.25);
@@ -627,6 +633,32 @@ button {
   border-radius: 12px;
   padding: 12px;
   margin-bottom: 10px;
+}
+
+.p4-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.p4-column,
+.p4-month-group,
+.p4-colleague-group {
+  border: 1px solid rgba(212, 175, 55, 0.24);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.p4-column h4,
+.p4-month-group h4,
+.p4-colleague-group h5 {
+  color: #d4af37;
+  margin: 0 0 10px;
+}
+
+.p4-colleague-group {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .cancel-btn {
@@ -801,6 +833,10 @@ button {
   }
 
   .p4-grid.week {
+    grid-template-columns: 1fr;
+  }
+
+  .p4-columns {
     grid-template-columns: 1fr;
   }
 
