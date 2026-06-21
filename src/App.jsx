@@ -115,7 +115,10 @@ function normaliserTexteIdentite(value) {
 }
 
 function normaliserPlaque(value) {
-  return (value || "").trim().toLowerCase();
+  return (value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function uniquePhotos(values) {
