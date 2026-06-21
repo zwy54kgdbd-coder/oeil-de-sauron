@@ -36,6 +36,13 @@ const TYPES_CONGES_P4 = [
   "ASA",
 ];
 const P4_CYCLE_START = "2026-01-05";
+const createP4Period = () => ({
+  tempId: `${Date.now()}-${Math.random()}`,
+  type: "CA en cours",
+  date_debut: "",
+  date_fin: "",
+  commentaire: "",
+});
 const MOIS_FR = [
   "Janvier",
   "Février",
@@ -497,11 +504,9 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [p4Vue, setP4Vue] = useState("mois");
   const [p4Date, setP4Date] = useState(toDateInputValue(new Date()));
   const [p4Collegue, setP4Collegue] = useState("");
-  const [p4Type, setP4Type] = useState("CA en cours");
-  const [p4Statut, setP4Statut] = useState("demande");
-  const [p4DateDebut, setP4DateDebut] = useState(toDateInputValue(new Date()));
-  const [p4DateFin, setP4DateFin] = useState(toDateInputValue(new Date()));
-  const [p4Commentaire, setP4Commentaire] = useState("");
+  const [p4FormMode, setP4FormMode] = useState("demande");
+  const [p4EditionStatut, setP4EditionStatut] = useState("demande");
+  const [p4Periodes, setP4Periodes] = useState([createP4Period()]);
   const [editingP4Id, setEditingP4Id] = useState(null);
     useEffect(() => {
   if (!logged) return;
@@ -1243,40 +1248,79 @@ const chargerP4Conges = async () => {
   const resetP4Form = () => {
     setEditingP4Id(null);
     setP4Collegue("");
-    setP4Type("CA en cours");
-    setP4Statut("demande");
-    setP4DateDebut(toDateInputValue(new Date()));
-    setP4DateFin(toDateInputValue(new Date()));
-    setP4Commentaire("");
+    setP4FormMode("demande");
+    setP4EditionStatut("demande");
+    setP4Periodes([createP4Period()]);
+  };
+
+  const changerModeP4 = (mode) => {
+    if (editingP4Id) return;
+    setP4FormMode(mode);
+  };
+
+  const ajouterP4Periode = () => {
+    setP4Periodes((periodes) => [...periodes, createP4Period()]);
+  };
+
+  const modifierP4Periode = (tempId, field, value) => {
+    setP4Periodes((periodes) =>
+      periodes.map((periode) =>
+        periode.tempId === tempId ? { ...periode, [field]: value } : periode
+      )
+    );
+  };
+
+  const retirerP4Periode = (tempId) => {
+    setP4Periodes((periodes) =>
+      periodes.length === 1
+        ? periodes
+        : periodes.filter((periode) => periode.tempId !== tempId)
+    );
   };
 
   const enregistrerP4Conge = async () => {
-    if (!p4Collegue || !p4DateDebut || !p4DateFin || !p4Type) {
-      alert("Renseigne le collègue, les dates et le type.");
+    const periodesValides = p4Periodes.filter(
+      (periode) => periode.date_debut || periode.date_fin || periode.commentaire
+    );
+
+    if (!p4Collegue || periodesValides.length === 0) {
+      alert("Renseigne le collègue et au moins une période.");
       return;
     }
 
-    if (p4DateFin < p4DateDebut) {
-      alert("La date de fin doit être après la date de début.");
+    const periodeIncomplete = periodesValides.find(
+      (periode) => !periode.date_debut || !periode.date_fin || !periode.type
+    );
+
+    if (periodeIncomplete) {
+      alert("Chaque période doit avoir un type, une date de début et une date de fin.");
       return;
     }
 
-    const statut =
-      peutGererP4 ? p4Statut : p4Statut === "previsionnel" ? "previsionnel" : "demande";
-    const payload = {
+    const periodeInversee = periodesValides.find(
+      (periode) => periode.date_fin < periode.date_debut
+    );
+
+    if (periodeInversee) {
+      alert("La date de fin doit être après la date de début pour chaque période.");
+      return;
+    }
+
+    const statut = editingP4Id && peutGererP4 ? p4EditionStatut : p4FormMode;
+    const payloads = periodesValides.map((periode) => ({
       collegue: p4Collegue,
-      date_debut: p4DateDebut,
-      date_fin: p4DateFin,
-      type: p4Type,
+      date_debut: periode.date_debut,
+      date_fin: periode.date_fin,
+      type: periode.type,
       statut,
-      commentaire: p4Commentaire,
+      commentaire: periode.commentaire,
       created_by: currentUser?.username || "Inconnu",
       updated_by: currentUser?.username || "Inconnu",
-    };
+    }));
 
     const result = editingP4Id
-      ? await supabase.from("p4_conges").update(payload).eq("id", editingP4Id)
-      : await supabase.from("p4_conges").insert([payload]);
+      ? await supabase.from("p4_conges").update(payloads[0]).eq("id", editingP4Id)
+      : await supabase.from("p4_conges").insert(payloads);
 
     if (result.error) {
       alert("Erreur P4 : " + result.error.message);
@@ -1285,7 +1329,7 @@ const chargerP4Conges = async () => {
 
     await chargerP4Conges();
     ajouterHistorique(
-      `${editingP4Id ? "Modification" : "Ajout"} P4 : ${p4Collegue} — ${p4Type} du ${formatDateFr(p4DateDebut)} au ${formatDateFr(p4DateFin)}`,
+      `${editingP4Id ? "Modification" : "Ajout"} P4 ${statut} : ${p4Collegue} — ${payloads.length} période(s)`,
       "p4_conges",
       editingP4Id
     );
@@ -1300,11 +1344,17 @@ const chargerP4Conges = async () => {
 
     setEditingP4Id(item.id);
     setP4Collegue(item.collegue || "");
-    setP4Type(item.type || "CA en cours");
-    setP4Statut(item.statut || "demande");
-    setP4DateDebut(item.date_debut || toDateInputValue(new Date()));
-    setP4DateFin(item.date_fin || item.date_debut || toDateInputValue(new Date()));
-    setP4Commentaire(item.commentaire || "");
+    setP4FormMode(item.statut === "previsionnel" ? "previsionnel" : "demande");
+    setP4EditionStatut(item.statut || "demande");
+    setP4Periodes([
+      {
+        tempId: `${item.id}-edition`,
+        type: item.type || "CA en cours",
+        date_debut: item.date_debut || "",
+        date_fin: item.date_fin || item.date_debut || "",
+        commentaire: item.commentaire || "",
+      },
+    ]);
   };
 
   const changerStatutP4Conge = async (item, statut) => {
@@ -4702,7 +4752,30 @@ if (page === "identityDetails" && selectedIdentity) {
         </div>
 
         <div className="admin-card">
-          <h3>{editingP4Id ? "Modifier P4" : "Demande / prévisionnel"}</h3>
+          <h3>
+            {editingP4Id
+              ? "Modifier P4"
+              : p4FormMode === "previsionnel"
+                ? "Prévisionnel"
+                : "Demande de congé"}
+          </h3>
+
+          {!editingP4Id && (
+            <div className="p4-form-mode">
+              <button
+                className={p4FormMode === "demande" ? "active" : ""}
+                onClick={() => changerModeP4("demande")}
+              >
+                Demande
+              </button>
+              <button
+                className={p4FormMode === "previsionnel" ? "active" : ""}
+                onClick={() => changerModeP4("previsionnel")}
+              >
+                Prévisionnel
+              </button>
+            </div>
+          )}
 
           <select
             className="role-select"
@@ -4717,55 +4790,91 @@ if (page === "identityDetails" && selectedIdentity) {
             ))}
           </select>
 
-          <select
-            className="role-select"
-            value={p4Type}
-            onChange={(e) => setP4Type(e.target.value)}
-          >
-            {TYPES_CONGES_P4.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
+          {editingP4Id && peutGererP4 && (
+            <select
+              className="role-select"
+              value={p4EditionStatut}
+              onChange={(e) => setP4EditionStatut(e.target.value)}
+            >
+              <option value="demande">Demande</option>
+              <option value="previsionnel">Prévisionnel</option>
+              <option value="valide">Validé</option>
+              <option value="refuse">Refusé</option>
+            </select>
+          )}
 
-          <select
-            className="role-select"
-            value={p4Statut}
-            onChange={(e) => setP4Statut(e.target.value)}
-          >
-            <option value="demande">Demande</option>
-            <option value="previsionnel">Prévisionnel</option>
-            {peutGererP4 && <option value="valide">Validé</option>}
-            {peutGererP4 && <option value="refuse">Refusé</option>}
-          </select>
+          {p4Periodes.map((periode, index) => (
+            <div className="p4-period-card" key={periode.tempId}>
+              <div className="p4-period-head">
+                <strong>Période {index + 1}</strong>
+                {p4Periodes.length > 1 && (
+                  <button
+                    className="delete-btn"
+                    onClick={() => retirerP4Periode(periode.tempId)}
+                  >
+                    Retirer
+                  </button>
+                )}
+              </div>
 
-          <div className="date-field">
-            <span>Début</span>
-            <input
-              type="date"
-              value={p4DateDebut}
-              onChange={(e) => setP4DateDebut(e.target.value)}
-            />
-          </div>
+              <select
+                className="role-select"
+                value={periode.type}
+                onChange={(e) =>
+                  modifierP4Periode(periode.tempId, "type", e.target.value)
+                }
+              >
+                {TYPES_CONGES_P4.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
 
-          <div className="date-field">
-            <span>Fin</span>
-            <input
-              type="date"
-              value={p4DateFin}
-              onChange={(e) => setP4DateFin(e.target.value)}
-            />
-          </div>
+              <div className="date-field">
+                <span>Début</span>
+                <input
+                  type="date"
+                  value={periode.date_debut}
+                  onChange={(e) =>
+                    modifierP4Periode(periode.tempId, "date_debut", e.target.value)
+                  }
+                />
+              </div>
 
-          <textarea
-            placeholder="Commentaire"
-            value={p4Commentaire}
-            onChange={(e) => setP4Commentaire(e.target.value)}
-          />
+              <div className="date-field">
+                <span>Fin</span>
+                <input
+                  type="date"
+                  value={periode.date_fin}
+                  onChange={(e) =>
+                    modifierP4Periode(periode.tempId, "date_fin", e.target.value)
+                  }
+                />
+              </div>
+
+              <textarea
+                placeholder="Commentaire"
+                value={periode.commentaire}
+                onChange={(e) =>
+                  modifierP4Periode(periode.tempId, "commentaire", e.target.value)
+                }
+              />
+            </div>
+          ))}
+
+          {!editingP4Id && (
+            <button className="cancel-btn" onClick={ajouterP4Periode}>
+              Ajouter une période
+            </button>
+          )}
 
           <button className="admin-main-btn" onClick={enregistrerP4Conge}>
-            {editingP4Id ? "Enregistrer modification" : "Envoyer"}
+            {editingP4Id
+              ? "Enregistrer modification"
+              : p4FormMode === "previsionnel"
+                ? "Envoyer le prévisionnel"
+                : "Envoyer la demande"}
           </button>
 
           {editingP4Id && (

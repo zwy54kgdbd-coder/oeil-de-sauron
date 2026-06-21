@@ -444,6 +444,46 @@ button {
   font-size: 34px;
 }
 
+.p4-form-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.p4-form-mode button {
+  min-height: 48px;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  background: #0d0d0d;
+  color: #d4af37;
+  font-weight: bold;
+}
+
+.p4-form-mode button.active {
+  background: linear-gradient(135deg, #d4af37, #8c6b16);
+  color: #050505;
+}
+
+.p4-period-card {
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 14px;
+  padding: 12px;
+  margin: 12px 0;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.p4-period-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.p4-period-head strong {
+  color: #d4af37;
+}
+
 .p4-legend {
   display: flex;
   flex-wrap: wrap;
