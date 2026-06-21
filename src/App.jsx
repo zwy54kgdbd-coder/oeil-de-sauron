@@ -535,6 +535,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [p4EditionStatut, setP4EditionStatut] = useState("demande");
   const [p4Periodes, setP4Periodes] = useState([createP4Period()]);
   const [editingP4Id, setEditingP4Id] = useState(null);
+  const [editingP4Item, setEditingP4Item] = useState(null);
     useEffect(() => {
   if (!logged) return;
 
@@ -1275,10 +1276,11 @@ const chargerP4Conges = async () => {
   const peutModifierP4Item = (item) =>
     peutGererP4 ||
     (item.created_by === currentUser?.username &&
-      ["demande", "previsionnel"].includes(item.statut));
+      ["demande", "previsionnel", "refuse"].includes(item.statut));
 
   const resetP4Form = () => {
     setEditingP4Id(null);
+    setEditingP4Item(null);
     setP4Collegue("");
     setP4FormMode("demande");
     setP4EditionStatut("demande");
@@ -1340,14 +1342,31 @@ const chargerP4Conges = async () => {
       return;
     }
 
-    const statut = editingP4Id && peutGererP4 ? p4EditionStatut : p4FormMode;
+    const relanceRefus =
+      editingP4Id && editingP4Item?.statut === "refuse" && !peutGererP4;
+    const statut =
+      editingP4Id && peutGererP4
+        ? p4EditionStatut
+        : relanceRefus
+          ? p4FormMode === "previsionnel"
+            ? "previsionnel"
+            : "demande"
+          : p4FormMode;
     const payloads = periodesValides.map((periode) => ({
       collegue: collegueFinal,
       date_debut: periode.date_debut,
       date_fin: periode.date_fin,
       type: periode.type,
       statut,
-      commentaire: periode.commentaire,
+      commentaire: relanceRefus
+        ? [
+            `Ancienne demande : ${formatDateFr(editingP4Item?.date_debut)} au ${formatDateFr(editingP4Item?.date_fin)}`,
+            `Nouvelle demande : ${formatDateFr(periode.date_debut)} au ${formatDateFr(periode.date_fin)}`,
+            periode.commentaire,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : periode.commentaire,
       created_by: currentUser?.username || "Inconnu",
       updated_by: currentUser?.username || "Inconnu",
     }));
@@ -1377,6 +1396,7 @@ const chargerP4Conges = async () => {
     }
 
     setEditingP4Id(item.id);
+    setEditingP4Item(item);
     setP4Collegue(item.collegue || "");
     setP4FormMode(item.statut === "previsionnel" ? "previsionnel" : "demande");
     setP4EditionStatut(item.statut || "demande");
@@ -4685,6 +4705,8 @@ if (page === "identityDetails" && selectedIdentity) {
     const p4DemandesUrgentes = p4ListeVisible.filter((item) =>
       ["demande", "previsionnel"].includes(item.statut)
     );
+    const relanceP4RefusEnEdition =
+      editingP4Item?.statut === "refuse" && !peutGererP4;
     const congesDuJour = (date, cycle) =>
       p4Conges.filter(
         (item) =>
@@ -4794,13 +4816,15 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="admin-card">
           <h3>
             {editingP4Id
-              ? "Modifier P4"
+              ? relanceP4RefusEnEdition
+                ? "Relancer la demande"
+                : "Modifier P4"
               : p4FormMode === "previsionnel"
                 ? "Prévisionnel"
                 : "Demande de congé"}
           </h3>
 
-          {!editingP4Id && (
+          {(!editingP4Id || relanceP4RefusEnEdition) && (
             <div className="p4-form-mode">
               <button
                 className={p4FormMode === "demande" ? "active" : ""}

@@ -48,7 +48,7 @@ using (
       )
   )
   or (
-    statut in ('demande', 'previsionnel')
+    statut in ('demande', 'previsionnel', 'refuse')
     and exists (
       select 1
       from public.users u
