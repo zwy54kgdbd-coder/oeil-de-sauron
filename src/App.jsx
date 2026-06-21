@@ -915,6 +915,51 @@ const chargerInterpellations = async () => {
     );
   };
 
+  const supprimerAnneeInterpellation = async (annee) => {
+    if (
+      currentUser?.role !== "LE TÔLIER" &&
+      currentUser?.role !== "ADMINISTRATEUR"
+    ) {
+      alert("Seul le Tôlier ou un administrateur peut supprimer une année.");
+      return;
+    }
+
+    const fichesAnnee = interpellations.filter(
+      (item) => new Date(item.date_interpellation).getFullYear() === annee
+    );
+    const confirmation = window.confirm(
+      fichesAnnee.length > 0
+        ? `Supprimer l'année ${annee} et ses ${fichesAnnee.length} fiche(s) ?`
+        : `Supprimer l'année ${annee} ?`
+    );
+
+    if (!confirmation) return;
+
+    if (fichesAnnee.length > 0) {
+      const { error } = await supabase
+        .from("interpellations")
+        .delete()
+        .gte("date_interpellation", `${annee}-01-01`)
+        .lte("date_interpellation", `${annee}-12-31`);
+
+      if (error) {
+        alert("Erreur suppression année : " + error.message);
+        return;
+      }
+
+      await chargerInterpellations();
+    }
+
+    setAnneesInterpellationsAjoutees((annees) =>
+      annees.filter((item) => item !== annee)
+    );
+    ajouterHistorique(
+      `Suppression année interpellations : ${annee}`,
+      "interpellation_annee",
+      annee
+    );
+  };
+
   const changerProduitCaisseCafe = (produit) => {
     const produitConfig = produitsCaisseCafe.find((item) => item.value === produit);
 
@@ -3499,6 +3544,20 @@ if (page === "identityDetails" && selectedIdentity) {
                         {infraction} : {total}
                       </div>
                     ))}
+                    {(currentUser?.role === "LE TÔLIER" ||
+                      currentUser?.role === "ADMINISTRATEUR") && (
+                      <div className="person-actions">
+                        <button
+                          className="delete-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            supprimerAnneeInterpellation(annee);
+                          }}
+                        >
+                          Supprimer l'année
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
