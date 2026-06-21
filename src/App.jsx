@@ -296,6 +296,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [vehicleDetailsReturnPage, setVehicleDetailsReturnPage] = useState("vehicules");
   const [nouveauFaitDate, setNouveauFaitDate] = useState("");
   const [nouveauFaitDescription, setNouveauFaitDescription] = useState("");
+  const [faitsIdentiteEnCreation, setFaitsIdentiteEnCreation] = useState([]);
   const [caisseCafe, setCaisseCafe] = useState([]);
   const [caisseCafeSoldes, setCaisseCafeSoldes] = useState([]);
   const [produitsCaisseCafe, setProduitsCaisseCafe] = useState(PRODUITS_CAISSE_CAFE_DEFAUT);
@@ -590,6 +591,31 @@ const supprimerFaitIdentite = async (id) => {
     `Suppression fait sur : ${libelleIdentite}${fait?.description ? ` — ${fait.description}` : ""}`,
     "fait_identite",
     fait?.identite_id || id
+  );
+};
+
+const ajouterFaitIdentiteEnCreation = () => {
+  if (!nouveauFaitDate || !nouveauFaitDescription.trim()) {
+    alert("Renseigne une date et un fait.");
+    return;
+  }
+
+  setFaitsIdentiteEnCreation((items) => [
+    ...items,
+    {
+      id: Date.now(),
+      date_fait: nouveauFaitDate,
+      description: nouveauFaitDescription.trim(),
+      created_by: currentUser?.username || "",
+    },
+  ]);
+  setNouveauFaitDate("");
+  setNouveauFaitDescription("");
+};
+
+const supprimerFaitIdentiteEnCreation = (id) => {
+  setFaitsIdentiteEnCreation((items) =>
+    items.filter((item) => item.id !== id)
   );
 };
 
@@ -1425,6 +1451,79 @@ const { data, error } = await supabase.auth.signInWithPassword({
   setPage("home");
 };
 
+  const renderHistoriqueFaitsIdentite = (identiteId = null) => {
+    const faitsHistorique = identiteId
+      ? faitsIdentites.filter(
+          (item) => String(item.identite_id) === String(identiteId)
+        )
+      : faitsIdentiteEnCreation;
+
+    return (
+      <div className="admin-card">
+        <h3>Historique des faits</h3>
+
+        {faitsHistorique.length === 0 && <p>Aucun fait enregistré.</p>}
+
+        {faitsHistorique.map((item) => (
+          <div className="user-line" key={item.id}>
+            <div>
+              <strong>
+                {formatDateFr(item.date_fait)} : {item.description}
+              </strong>
+              {item.created_by && (
+                <>
+                  <br />
+                  Ajouté par : {item.created_by}
+                </>
+              )}
+            </div>
+
+            {identiteId ? (
+              currentUser?.role !== "MEMBRE" && (
+                <button
+                  className="delete-btn"
+                  onClick={() => supprimerFaitIdentite(item.id)}
+                >
+                  Supprimer
+                </button>
+              )
+            ) : (
+              <button
+                className="delete-btn"
+                onClick={() => supprimerFaitIdentiteEnCreation(item.id)}
+              >
+                Supprimer
+              </button>
+            )}
+          </div>
+        ))}
+
+        <input
+          type="date"
+          value={nouveauFaitDate}
+          onChange={(e) => setNouveauFaitDate(e.target.value)}
+        />
+
+        <textarea
+          placeholder="Nouveau fait"
+          value={nouveauFaitDescription}
+          onChange={(e) => setNouveauFaitDescription(e.target.value)}
+        />
+
+        <button
+          className="admin-main-btn"
+          onClick={() =>
+            identiteId
+              ? ajouterFaitIdentite(identiteId)
+              : ajouterFaitIdentiteEnCreation()
+          }
+        >
+          Ajouter un fait
+        </button>
+      </div>
+    );
+  };
+
   const resetIdentityForm = () => {
     setEditingId(null);
     setNom("");
@@ -1441,6 +1540,9 @@ setTelephone("");
     setPhoto("");
     setPhotos([]);
     setPhotoPrincipaleIndex(0);
+    setFaitsIdentiteEnCreation([]);
+    setNouveauFaitDate("");
+    setNouveauFaitDescription("");
   };
 
   const enregistrerIdentite = async () => {
@@ -1507,6 +1609,24 @@ telephone,
     "identite",
     identiteId
   );
+
+  if (!editingId && identiteId && faitsIdentiteEnCreation.length > 0) {
+    const { error: faitsError } = await supabase.from("faits_identites").insert(
+      faitsIdentiteEnCreation.map((item) => ({
+        identite_id: identiteId,
+        date_fait: item.date_fait,
+        description: item.description,
+        created_by: item.created_by || currentUser?.username || "",
+      }))
+    );
+
+    if (faitsError) {
+      alert("Identité enregistrée, mais erreur ajout historique des faits : " + faitsError.message);
+      return;
+    }
+
+    await chargerFaitsIdentites();
+  }
 
   if (retourIdentiteInterpellation) {
     setInterpellationAuteurs((auteurs) => [
@@ -2255,9 +2375,6 @@ if (page === "identityDetails" && selectedIdentity) {
   const vehiculesLies = vehicules.filter(
     (item) => String(item.individuId) === String(person.id)
   );
-  const faitsHistorique = faitsIdentites.filter(
-    (item) => String(item.identite_id) === String(person.id)
-  );
 
   return (
     <div className="home-page">
@@ -2307,55 +2424,7 @@ if (page === "identityDetails" && selectedIdentity) {
         )}
       </div>
 
-      <div className="admin-card">
-        <h3>Historique des faits</h3>
-
-        {faitsHistorique.length === 0 && <p>Aucun fait enregistré.</p>}
-
-        {faitsHistorique.map((item) => (
-          <div className="user-line" key={item.id}>
-            <div>
-              <strong>
-                {formatDateFr(item.date_fait)} : {item.description}
-              </strong>
-              {item.created_by && (
-                <>
-                  <br />
-                  Ajouté par : {item.created_by}
-                </>
-              )}
-            </div>
-
-            {currentUser?.role !== "MEMBRE" && (
-              <button
-                className="delete-btn"
-                onClick={() => supprimerFaitIdentite(item.id)}
-              >
-                Supprimer
-              </button>
-            )}
-          </div>
-        ))}
-
-        <input
-          type="date"
-          value={nouveauFaitDate}
-          onChange={(e) => setNouveauFaitDate(e.target.value)}
-        />
-
-        <textarea
-          placeholder="Nouveau fait"
-          value={nouveauFaitDescription}
-          onChange={(e) => setNouveauFaitDescription(e.target.value)}
-        />
-
-        <button
-          className="admin-main-btn"
-          onClick={() => ajouterFaitIdentite(person.id)}
-        >
-          Ajouter un fait
-        </button>
-      </div>
+      {renderHistoriqueFaitsIdentite(person.id)}
 
       <div className="admin-card">
         <h3>Véhicules liés</h3>
@@ -3241,6 +3310,8 @@ if (page === "identityDetails" && selectedIdentity) {
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
           />
+
+          {renderHistoriqueFaitsIdentite(editingId)}
 
           {photos.length > 0 && (
   <div className="photos-zone">
