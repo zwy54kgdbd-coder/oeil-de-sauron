@@ -315,8 +315,9 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [interpellationType, setInterpellationType] = useState("initiative");
   const [interpellationAuteurNom, setInterpellationAuteurNom] = useState("");
   const [interpellationAuteurPrenom, setInterpellationAuteurPrenom] = useState("");
+  const [interpellationAuteurs, setInterpellationAuteurs] = useState([]);
   const [interpellationInfractions, setInterpellationInfractions] = useState("");
-  const [interpellationNombre, setInterpellationNombre] = useState("1");
+  const [interpellationNombre, setInterpellationNombre] = useState("");
     useEffect(() => {
   chargerIdentites();
   chargerVehicules();
@@ -769,20 +770,45 @@ const chargerInterpellations = async () => {
     setInterpellationType("initiative");
     setInterpellationAuteurNom("");
     setInterpellationAuteurPrenom("");
+    setInterpellationAuteurs([]);
     setInterpellationInfractions("");
-    setInterpellationNombre("1");
+    setInterpellationNombre("");
+  };
+
+  const ajouterAuteurInterpellation = () => {
+    const auteur = `${interpellationAuteurNom.trim()} ${interpellationAuteurPrenom.trim()}`
+      .trim();
+
+    if (!auteur) {
+      alert("Renseigne le nom ou le prénom de l'auteur.");
+      return;
+    }
+
+    setInterpellationAuteurs((auteurs) => [...auteurs, auteur]);
+    setInterpellationAuteurNom("");
+    setInterpellationAuteurPrenom("");
+  };
+
+  const supprimerAuteurInterpellation = (index) => {
+    setInterpellationAuteurs((auteurs) =>
+      auteurs.filter((_, auteurIndex) => auteurIndex !== index)
+    );
   };
 
   const enregistrerInterpellation = async () => {
     const nombreInterpelles = Number(interpellationNombre);
+    const auteurSaisi =
+      `${interpellationAuteurNom.trim()} ${interpellationAuteurPrenom.trim()}`
+        .trim();
+    const auteurs = [...interpellationAuteurs, auteurSaisi].filter(Boolean);
 
     if (!interpellationDate) {
       alert("Renseigne la date.");
       return;
     }
 
-    if (!interpellationAuteurNom.trim() && !interpellationAuteurPrenom.trim()) {
-      alert("Renseigne le nom ou le prénom de l'auteur.");
+    if (auteurs.length === 0) {
+      alert("Ajoute au moins un auteur.");
       return;
     }
 
@@ -799,8 +825,8 @@ const chargerInterpellations = async () => {
     const fiche = {
       date_interpellation: interpellationDate,
       type: interpellationType,
-      auteur_nom: interpellationAuteurNom.trim(),
-      auteur_prenom: interpellationAuteurPrenom.trim(),
+      auteur_nom: auteurs.join(", "),
+      auteur_prenom: "",
       infractions: interpellationInfractions.trim(),
       nombre_interpelles: nombreInterpelles,
       created_by: currentUser?.username || "Inconnu",
@@ -831,10 +857,16 @@ const chargerInterpellations = async () => {
     setEditingInterpellationId(item.id);
     setInterpellationDate(item.date_interpellation || "");
     setInterpellationType(item.type || "initiative");
-    setInterpellationAuteurNom(item.auteur_nom || "");
-    setInterpellationAuteurPrenom(item.auteur_prenom || "");
+    setInterpellationAuteurNom("");
+    setInterpellationAuteurPrenom("");
+    setInterpellationAuteurs(
+      `${item.auteur_nom || ""} ${item.auteur_prenom || ""}`
+        .split(",")
+        .map((auteur) => auteur.trim())
+        .filter(Boolean)
+    );
     setInterpellationInfractions(item.infractions || "");
-    setInterpellationNombre(String(item.nombre_interpelles || 1));
+    setInterpellationNombre(String(item.nombre_interpelles || ""));
   };
 
   const supprimerInterpellation = async (id) => {
@@ -3491,8 +3523,9 @@ if (page === "identityDetails" && selectedIdentity) {
                     setInterpellationType("initiative");
                     setInterpellationAuteurNom("");
                     setInterpellationAuteurPrenom("");
+                    setInterpellationAuteurs([]);
                     setInterpellationInfractions("");
-                    setInterpellationNombre("1");
+                    setInterpellationNombre("");
                   }}
                 >
                   <div className="avatar">🗓️</div>
@@ -3570,6 +3603,26 @@ if (page === "identityDetails" && selectedIdentity) {
             onChange={(e) => setInterpellationAuteurPrenom(e.target.value)}
           />
 
+          <button className="edit-btn" onClick={ajouterAuteurInterpellation}>
+            Ajouter auteur
+          </button>
+
+          {interpellationAuteurs.length > 0 && (
+            <div className="results-list">
+              {interpellationAuteurs.map((auteur, index) => (
+                <div className="user-line" key={`${auteur}-${index}`}>
+                  <strong>{auteur}</strong>
+                  <button
+                    className="delete-btn"
+                    onClick={() => supprimerAuteurInterpellation(index)}
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <textarea
             placeholder="Infractions"
             value={interpellationInfractions}
@@ -3607,7 +3660,7 @@ if (page === "identityDetails" && selectedIdentity) {
                   {formatDateFr(item.date_interpellation)} — {item.type === "requisition" ? "Réquisition" : "Initiative"}
                 </strong>
                 <br />
-                Auteur : {item.auteur_nom} {item.auteur_prenom}
+                Auteur(s) : {item.auteur_nom} {item.auteur_prenom}
                 <br />
                 Infractions : {item.infractions}
                 <br />
