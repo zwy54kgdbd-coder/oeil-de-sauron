@@ -1588,7 +1588,11 @@ if (profilError || !profil) {
           </div>
         ))}
 
+        <label className="form-label" htmlFor="nouveau-fait-date">
+          Date du fait
+        </label>
         <input
+          id="nouveau-fait-date"
           type="date"
           value={nouveauFaitDate}
           onChange={(e) => setNouveauFaitDate(e.target.value)}
@@ -3285,7 +3289,11 @@ if (page === "identityDetails" && selectedIdentity) {
                 onChange={(e) => setNouvelleIdentiteAlias(e.target.value)}
               />
 
+              <label className="form-label" htmlFor="nouvelle-identite-naissance">
+                Date de naissance
+              </label>
               <input
+                id="nouvelle-identite-naissance"
                 type="date"
                 value={nouvelleIdentiteNaissance}
                 onChange={(e) => setNouvelleIdentiteNaissance(e.target.value)}
@@ -3586,7 +3594,11 @@ if (page === "identityDetails" && selectedIdentity) {
             onChange={(e) => setAlias(e.target.value)}
           />
 
+          <label className="form-label" htmlFor="identite-naissance">
+            Date de naissance
+          </label>
           <input
+            id="identite-naissance"
             type="date"
             value={naissance}
             onChange={(e) => setNaissance(e.target.value)}
@@ -4148,7 +4160,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="admin-card">
           <h3>{editingInterpellationId ? "Modifier une fiche" : "Ajouter une fiche"}</h3>
 
+          <label className="form-label" htmlFor="interpellation-date">
+            Date
+          </label>
           <input
+            id="interpellation-date"
             type="date"
             value={interpellationDate}
             onChange={(e) => setInterpellationDate(e.target.value)}
