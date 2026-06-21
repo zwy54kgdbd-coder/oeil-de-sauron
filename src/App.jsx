@@ -354,6 +354,7 @@ const [nouvelleIdentiteTelephone, setNouvelleIdentiteTelephone] = useState("");
 
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
+  const [duplicateIdentityWarningKey, setDuplicateIdentityWarningKey] = useState("");
   const [retourIdentiteInterpellation, setRetourIdentiteInterpellation] = useState(false);
   const [alias, setAlias] = useState("");
   const [naissance, setNaissance] = useState("");
@@ -1617,6 +1618,7 @@ if (profilError || !profil) {
     setEditingId(null);
     setNom("");
     setPrenom("");
+    setDuplicateIdentityWarningKey("");
     setAlias("");
     setNaissance("");
     setLieuNaissance("");
@@ -1634,16 +1636,12 @@ setTelephone("");
     setNouveauFaitDescription("");
   };
 
-  const enregistrerIdentite = async () => {
-  if (!nom && !prenom && !alias) {
-    alert("Renseigne au moins un nom, un prénom ou un alias.");
-    return;
-  }
+  const trouverDoublonIdentite = () => {
+    const nomClean = normaliserTexteIdentite(nom);
+    const prenomClean = normaliserTexteIdentite(prenom);
 
-  const nomClean = normaliserTexteIdentite(nom);
-  const prenomClean = normaliserTexteIdentite(prenom);
+    if (editingId || !nomClean || !prenomClean) return null;
 
-  if (!editingId && nomClean && prenomClean) {
     const identiteExistante = identites.find((item) => {
       return (
         normaliserTexteIdentite(item.nom) === nomClean &&
@@ -1651,13 +1649,40 @@ setTelephone("");
       );
     });
 
-    if (identiteExistante) {
-      const continuer = window.confirm(
-        "Attention identité existante, vérifiez s'il ne s'agit pas d'un homonyme."
-      );
+    if (!identiteExistante) return null;
 
-      if (!continuer) return;
-    }
+    return {
+      key: `${nomClean}|${prenomClean}`,
+      identite: identiteExistante,
+    };
+  };
+
+  const alerterDoublonIdentite = () => {
+    const doublon = trouverDoublonIdentite();
+
+    if (!doublon || duplicateIdentityWarningKey === doublon.key) return;
+
+    alert(
+      "Attention identité existante, vérifiez s'il ne s'agit pas d'un homonyme."
+    );
+    setDuplicateIdentityWarningKey(doublon.key);
+  };
+
+  const enregistrerIdentite = async () => {
+  if (!nom && !prenom && !alias) {
+    alert("Renseigne au moins un nom, un prénom ou un alias.");
+    return;
+  }
+
+  const doublonIdentite = trouverDoublonIdentite();
+
+  if (doublonIdentite && duplicateIdentityWarningKey !== doublonIdentite.key) {
+    const continuer = window.confirm(
+      "Attention identité existante, vérifiez s'il ne s'agit pas d'un homonyme."
+    );
+
+    if (!continuer) return;
+    setDuplicateIdentityWarningKey(doublonIdentite.key);
   }
 
   const photoPrincipale = photos[photoPrincipaleIndex] || photo || "";
@@ -3550,12 +3575,14 @@ if (page === "identityDetails" && selectedIdentity) {
             placeholder="Prénom"
             value={prenom}
             onChange={(e) => setPrenom(e.target.value)}
+            onBlur={alerterDoublonIdentite}
           />
 
           <input
             type="text"
             placeholder="Alias"
             value={alias}
+            onFocus={alerterDoublonIdentite}
             onChange={(e) => setAlias(e.target.value)}
           />
 
