@@ -1,26 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = "https://sqjzunerpujqidvgepiw.supabase.co";
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-
-async function findAuthUserByEmail(email) {
-  const { data, error } = await supabaseAdmin.auth.admin.listUsers();
-
-  if (error) {
-    throw error;
-  }
-
-  return data.users.find(
-    (user) => user.email?.toLowerCase() === email.toLowerCase()
-  );
-}
+import {
+  findAuthUserByEmail,
+  getAuthEmail,
+  requireTolier,
+  supabaseAdmin,
+} from "./auth-utils.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
   }
+
+  const requester = await requireTolier(req, res);
+
+  if (!requester) return;
 
   const usernameClean = req.body?.username?.trim().toLowerCase();
 
@@ -42,7 +34,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: profileError.message });
   }
 
-  const authEmail = profile?.auth_email || `${usernameClean}@oeildesauron.com`;
+  const authEmail = profile?.auth_email || getAuthEmail(usernameClean);
   const authUser = await findAuthUserByEmail(authEmail);
 
   if (authUser) {

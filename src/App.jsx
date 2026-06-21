@@ -197,6 +197,8 @@ const [session, setSession] = useState(null);
   
   const [users, setUsers] = useState(initialUsers);
   useEffect(() => {
+  if (!logged) return;
+
   chargerUtilisateurs();
 
   const channelUsers = supabase
@@ -217,7 +219,7 @@ const [session, setSession] = useState(null);
   return () => {
     supabase.removeChannel(channelUsers);
   };
-}, []);
+}, [logged]);
 const chargerUtilisateurs = async () => {
   const { data, error } = await supabase
     .from("users")
@@ -322,6 +324,8 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [interpellationInfractions, setInterpellationInfractions] = useState("");
   const [interpellationNombre, setInterpellationNombre] = useState("");
     useEffect(() => {
+  if (!logged) return;
+
   chargerIdentites();
   chargerVehicules();
   chargerFaitsIdentites();
@@ -461,7 +465,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     supabase.removeChannel(caisseCafeProduitsChannel);
     supabase.removeChannel(interpellationsChannel);
   };
-}, []);
+}, [logged]);
 
   const chargerIdentites = async () => {
   const { data, error } = await supabase
@@ -1405,22 +1409,10 @@ const chargerInterpellations = async () => {
 
   const loginClean = username.trim().toLowerCase();
 
-const { data: profil, error: profilError } = await supabase
-  .from("users")
-  .select("*")
-  .eq("username", loginClean)
-  .single();
-
-if (profilError) {
-  alert("Profil utilisateur introuvable.");
-  return;
-}
-
 const email =
-  profil.auth_email ||
-  (loginClean === "tolier"
+  loginClean === "tolier"
     ? "tayeb.berkouk.tbt@gmail.com"
-    : `${loginClean}@oeildesauron.com`);
+    : `${loginClean}@oeildesauron.com`;
 
 const { data, error } = await supabase.auth.signInWithPassword({
   email,
@@ -1432,7 +1424,28 @@ const { data, error } = await supabase.auth.signInWithPassword({
     return;
   }
 
-  
+let { data: profil, error: profilError } = await supabase
+  .from("users")
+  .select("*")
+  .eq("auth_email", email)
+  .maybeSingle();
+
+if (!profil && !profilError) {
+  const fallback = await supabase
+    .from("users")
+    .select("*")
+    .eq("username", loginClean)
+    .maybeSingle();
+
+  profil = fallback.data;
+  profilError = fallback.error;
+}
+
+if (profilError || !profil) {
+  await supabase.auth.signOut();
+  alert("Connexion réussie, mais profil utilisateur introuvable.");
+  return;
+}
 
   setSession(data.session);
   setCurrentUser(profil);
@@ -2016,6 +2029,16 @@ const handleVehiculePhoto = async (e) => {
     setNewRole("MEMBRE");
   };
 
+  const getAuthorizationHeaders = async () => {
+    const activeSession =
+      session || (await supabase.auth.getSession()).data.session;
+
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${activeSession?.access_token || ""}`,
+    };
+  };
+
   const enregistrerUtilisateur = async () => {
   if (!newUsername || !newPassword || !newRole) {
     alert("Identifiant, mot de passe et rôle obligatoires.");
@@ -2025,9 +2048,11 @@ const handleVehiculePhoto = async (e) => {
   const usernameClean = newUsername.trim().toLowerCase();
 
   if (editingUser) {
-    const { error } = await supabase
-      .from("users")
-      .update({
+    const response = await fetch("/api/update-user", {
+      method: "POST",
+      headers: await getAuthorizationHeaders(),
+      body: JSON.stringify({
+        originalUsername: editingUser,
         username: usernameClean,
         password: newPassword,
         role: newRole,
@@ -2035,11 +2060,13 @@ const handleVehiculePhoto = async (e) => {
         nom: newNom,
         prenom: newPrenom,
         matricule: newMatricule,
-      })
-      .eq("username", editingUser);
+      }),
+    });
 
-    if (error) {
-      alert("Erreur modification utilisateur : " + error.message);
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert("Erreur modification utilisateur : " + result.error);
       return;
     }
 
@@ -2051,9 +2078,7 @@ const handleVehiculePhoto = async (e) => {
 
   const response = await fetch("/api/create-user", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await getAuthorizationHeaders(),
     body: JSON.stringify({
       username: usernameClean,
       password: newPassword,
@@ -2111,14 +2136,16 @@ const handleVehiculePhoto = async (e) => {
 
   if (!confirmation) return;
 
-  const { error } = await supabase
-    .from("users")
-    .delete()
-    .eq("username", username);
+  const response = await fetch("/api/delete-user", {
+    method: "POST",
+    headers: await getAuthorizationHeaders(),
+    body: JSON.stringify({ username }),
+  });
 
-  if (error) {
-    console.error("ERREUR SUPPRESSION SUPABASE :", error);
-    alert("Erreur suppression Supabase : " + error.message);
+  const result = await response.json();
+
+  if (!response.ok) {
+    alert("Erreur suppression utilisateur : " + result.error);
     return;
   }
 
