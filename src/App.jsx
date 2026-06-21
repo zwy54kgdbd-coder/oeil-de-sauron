@@ -4714,7 +4714,7 @@ if (page === "identityDetails" && selectedIdentity) {
     const p4ListeVisible = peutGererP4
       ? p4Conges
       : p4Conges.filter((item) => item.created_by === currentUser?.username);
-    const p4DemandesUrgentes = p4ListeVisible.filter((item) =>
+    const p4DemandesUrgentes = p4Conges.filter((item) =>
       ["demande", "previsionnel"].includes(item.statut)
     );
     const p4DemandesEnCours = p4DemandesUrgentes.filter(
@@ -4915,10 +4915,7 @@ if (page === "identityDetails" && selectedIdentity) {
                     >
                       <div className="p4-day-head">
                         <strong>{day.getDate()}</strong>
-                        <span>S{cycle.cycleWeek}</span>
-                      </div>
-                      <div className="p4-day-kind">
-                        {cycle.isWorking ? "Travail" : "Repos"}
+                        <span>{cycle.isWorking ? "Travail" : "Repos"}</span>
                       </div>
 
                       {lignesJour.map((item) => (
