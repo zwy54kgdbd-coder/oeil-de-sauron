@@ -4723,41 +4723,27 @@ if (page === "identityDetails" && selectedIdentity) {
     const p4PrevisionnelsEnCours = p4DemandesUrgentes.filter(
       (item) => getP4Nature(item) === "previsionnel"
     );
-    const p4EnregistreParMois = [...p4ListeVisible]
+    const p4EnregistreParCollegue = [...p4ListeVisible]
       .sort((a, b) => {
-        const dateCompare = (a.date_debut || "").localeCompare(b.date_debut || "");
-        if (dateCompare !== 0) return dateCompare;
-        return getP4CollegueLabel(a.collegue).localeCompare(
+        const collegueCompare = getP4CollegueLabel(a.collegue).localeCompare(
           getP4CollegueLabel(b.collegue),
           "fr",
           { sensitivity: "base" }
         );
+        if (collegueCompare !== 0) return collegueCompare;
+        return (a.date_debut || "").localeCompare(b.date_debut || "");
       })
-      .reduce((months, item) => {
-        const date = parseDateLocale(item.date_debut);
-        const moisKey = date
-          ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-          : "date-inconnue";
-        const moisLabel = date
-          ? `${MOIS_FR[date.getMonth()]} ${date.getFullYear()}`
-          : "Date inconnue";
+      .reduce((groups, item) => {
         const collegue = getP4CollegueLabel(item.collegue) || "Collègue inconnu";
-        let month = months.find((group) => group.key === moisKey);
-
-        if (!month) {
-          month = { key: moisKey, label: moisLabel, collegues: [] };
-          months.push(month);
-        }
-
-        let collegueGroup = month.collegues.find((group) => group.label === collegue);
+        let collegueGroup = groups.find((group) => group.label === collegue);
 
         if (!collegueGroup) {
           collegueGroup = { label: collegue, items: [] };
-          month.collegues.push(collegueGroup);
+          groups.push(collegueGroup);
         }
 
         collegueGroup.items.push(item);
-        return months;
+        return groups;
       }, []);
     const relanceP4RefusEnEdition =
       editingP4Item?.statut === "refuse" && !peutGererP4;
@@ -5108,18 +5094,12 @@ if (page === "identityDetails" && selectedIdentity) {
 
           {p4ListeVisible.length === 0 && <p>Aucune ligne P4 enregistrée.</p>}
 
-          {p4EnregistreParMois.map((mois) => (
-            <div className="p4-month-group" key={mois.key}>
-              <h4>{mois.label}</h4>
-
-              {mois.collegues.map((collegueGroup) => (
-                <div className="p4-colleague-group" key={`${mois.key}-${collegueGroup.label}`}>
-                  <h5>{collegueGroup.label}</h5>
-                  {collegueGroup.items.map((item) =>
-                    renderP4Carte(item, { showStoredButtons: true })
-                  )}
-                </div>
-              ))}
+          {p4EnregistreParCollegue.map((collegueGroup) => (
+            <div className="p4-colleague-group" key={collegueGroup.label}>
+              <h4>{collegueGroup.label}</h4>
+              {collegueGroup.items.map((item) =>
+                renderP4Carte(item, { showStoredButtons: true })
+              )}
             </div>
           ))}
         </div>
