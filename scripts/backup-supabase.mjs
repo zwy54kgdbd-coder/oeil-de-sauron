@@ -19,6 +19,7 @@ const tables = [
   "caisse_cafe_soldes",
   "caisse_cafe_produits",
   "interpellations",
+  "p4_conges",
 ];
 
 const storageBuckets = ["photos-identites"];

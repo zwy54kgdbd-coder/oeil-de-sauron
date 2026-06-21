@@ -24,6 +24,18 @@ const PRODUITS_CAISSE_CAFE_DEFAUT = [
   { value: "condiments_100", label: "Condiments 1 €", prix: 1 },
   { value: "cafe", label: "Café", prix: 2 },
 ];
+const TYPES_CONGES_P4 = [
+  "CF",
+  "RPS",
+  "CA en cours",
+  "CA HP",
+  "CA antérieur",
+  "RTC",
+  "RTT",
+  "CET",
+  "ASA",
+];
+const P4_CYCLE_START = "2026-01-05";
 const MOIS_FR = [
   "Janvier",
   "Février",
@@ -229,6 +241,79 @@ function formatDateFr(value) {
   return date.toLocaleDateString("fr-FR");
 }
 
+function toDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateLocale(value) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+
+  return next;
+}
+
+function startOfWeek(date) {
+  const start = new Date(date);
+  const day = start.getDay() || 7;
+  start.setDate(start.getDate() - day + 1);
+
+  return start;
+}
+
+function getMonthDays(year, monthIndex) {
+  const days = [];
+  const date = new Date(year, monthIndex, 1);
+
+  while (date.getMonth() === monthIndex) {
+    days.push(new Date(date));
+    date.setDate(date.getDate() + 1);
+  }
+
+  return days;
+}
+
+function getWeekDays(date) {
+  const start = startOfWeek(date);
+
+  return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+}
+
+function isSameDay(a, b) {
+  return toDateInputValue(a) === toDateInputValue(b);
+}
+
+function isDateInRange(date, start, end) {
+  const value = toDateInputValue(date);
+
+  return value >= start && value <= end;
+}
+
+function getP4CycleInfo(date) {
+  const cycleStart = parseDateLocale(P4_CYCLE_START);
+  const diffDays = Math.floor((startOfWeek(date) - cycleStart) / 86400000);
+  const weekIndex = Math.floor(diffDays / 7);
+  const cycleWeek = ((weekIndex % 2) + 2) % 2;
+  const day = date.getDay() || 7;
+  const workingDays = cycleWeek === 0 ? [3, 4] : [1, 2, 5, 6, 7];
+  const isWorking = workingDays.includes(day);
+
+  return {
+    cycleWeek: cycleWeek + 1,
+    isWorking,
+  };
+}
+
 function formatHeureFr(value) {
   if (!value) return "";
 
@@ -408,6 +493,16 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [interpellationAuteurs, setInterpellationAuteurs] = useState([]);
   const [interpellationInfractions, setInterpellationInfractions] = useState("");
   const [interpellationNombre, setInterpellationNombre] = useState("");
+  const [p4Conges, setP4Conges] = useState([]);
+  const [p4Vue, setP4Vue] = useState("mois");
+  const [p4Date, setP4Date] = useState(toDateInputValue(new Date()));
+  const [p4Collegue, setP4Collegue] = useState("");
+  const [p4Type, setP4Type] = useState("CA en cours");
+  const [p4Statut, setP4Statut] = useState("demande");
+  const [p4DateDebut, setP4DateDebut] = useState(toDateInputValue(new Date()));
+  const [p4DateFin, setP4DateFin] = useState(toDateInputValue(new Date()));
+  const [p4Commentaire, setP4Commentaire] = useState("");
+  const [editingP4Id, setEditingP4Id] = useState(null);
     useEffect(() => {
   if (!logged) return;
 
@@ -419,6 +514,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   chargerCaisseCafeSoldes();
   chargerProduitsCaisseCafe();
   chargerInterpellations();
+  chargerP4Conges();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -540,6 +636,21 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const p4CongesChannel = supabase
+    .channel("realtime-p4-conges")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "p4_conges",
+      },
+      () => {
+        chargerP4Conges();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
@@ -549,6 +660,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     supabase.removeChannel(caisseCafeSoldesChannel);
     supabase.removeChannel(caisseCafeProduitsChannel);
     supabase.removeChannel(interpellationsChannel);
+    supabase.removeChannel(p4CongesChannel);
   };
 }, [logged]);
 
@@ -787,6 +899,21 @@ const chargerInterpellations = async () => {
   }
 
   setInterpellations(data || []);
+};
+
+const chargerP4Conges = async () => {
+  const { data, error } = await supabase
+    .from("p4_conges")
+    .select("*")
+    .order("date_debut", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR P4 :", error);
+    return;
+  }
+
+  setP4Conges(data || []);
 };
 
   const saveUsers = (updatedUsers) => {
@@ -1106,6 +1233,132 @@ const chargerInterpellations = async () => {
       `Suppression année interpellations : ${annee}`,
       "interpellation_annee",
       annee
+    );
+  };
+
+  const peutGererP4 =
+    currentUser?.role === "LE TÔLIER" ||
+    currentUser?.role === "ADMINISTRATEUR";
+
+  const resetP4Form = () => {
+    setEditingP4Id(null);
+    setP4Collegue("");
+    setP4Type("CA en cours");
+    setP4Statut("demande");
+    setP4DateDebut(toDateInputValue(new Date()));
+    setP4DateFin(toDateInputValue(new Date()));
+    setP4Commentaire("");
+  };
+
+  const enregistrerP4Conge = async () => {
+    if (!p4Collegue || !p4DateDebut || !p4DateFin || !p4Type) {
+      alert("Renseigne le collègue, les dates et le type.");
+      return;
+    }
+
+    if (p4DateFin < p4DateDebut) {
+      alert("La date de fin doit être après la date de début.");
+      return;
+    }
+
+    const statut =
+      peutGererP4 ? p4Statut : p4Statut === "previsionnel" ? "previsionnel" : "demande";
+    const payload = {
+      collegue: p4Collegue,
+      date_debut: p4DateDebut,
+      date_fin: p4DateFin,
+      type: p4Type,
+      statut,
+      commentaire: p4Commentaire,
+      created_by: currentUser?.username || "Inconnu",
+      updated_by: currentUser?.username || "Inconnu",
+    };
+
+    const result = editingP4Id
+      ? await supabase.from("p4_conges").update(payload).eq("id", editingP4Id)
+      : await supabase.from("p4_conges").insert([payload]);
+
+    if (result.error) {
+      alert("Erreur P4 : " + result.error.message);
+      return;
+    }
+
+    await chargerP4Conges();
+    ajouterHistorique(
+      `${editingP4Id ? "Modification" : "Ajout"} P4 : ${p4Collegue} — ${p4Type} du ${formatDateFr(p4DateDebut)} au ${formatDateFr(p4DateFin)}`,
+      "p4_conges",
+      editingP4Id
+    );
+    resetP4Form();
+  };
+
+  const modifierP4Conge = (item) => {
+    if (!peutGererP4) {
+      alert("Seuls le Tôlier et les administrateurs peuvent modifier le P4.");
+      return;
+    }
+
+    setEditingP4Id(item.id);
+    setP4Collegue(item.collegue || "");
+    setP4Type(item.type || "CA en cours");
+    setP4Statut(item.statut || "demande");
+    setP4DateDebut(item.date_debut || toDateInputValue(new Date()));
+    setP4DateFin(item.date_fin || item.date_debut || toDateInputValue(new Date()));
+    setP4Commentaire(item.commentaire || "");
+  };
+
+  const changerStatutP4Conge = async (item, statut) => {
+    if (!peutGererP4) {
+      alert("Seuls le Tôlier et les administrateurs peuvent modifier le P4.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("p4_conges")
+      .update({
+        statut,
+        updated_by: currentUser?.username || "Inconnu",
+      })
+      .eq("id", item.id);
+
+    if (error) {
+      alert("Erreur statut P4 : " + error.message);
+      return;
+    }
+
+    await chargerP4Conges();
+    ajouterHistorique(
+      `Statut P4 ${statut} : ${item.collegue} — ${item.type}`,
+      "p4_conges",
+      item.id
+    );
+  };
+
+  const supprimerP4Conge = async (item) => {
+    if (!peutGererP4) {
+      alert("Seuls le Tôlier et les administrateurs peuvent supprimer du P4.");
+      return;
+    }
+
+    const confirmation = window.confirm("Supprimer cette ligne P4 ?");
+
+    if (!confirmation) return;
+
+    const { error } = await supabase
+      .from("p4_conges")
+      .delete()
+      .eq("id", item.id);
+
+    if (error) {
+      alert("Erreur suppression P4 : " + error.message);
+      return;
+    }
+
+    await chargerP4Conges();
+    ajouterHistorique(
+      `Suppression P4 : ${item.collegue} — ${item.type}`,
+      "p4_conges",
+      item.id
     );
   };
 
@@ -4329,6 +4582,279 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  if (page === "p4") {
+    const selectedDate = parseDateLocale(p4Date) || new Date();
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = selectedDate.getMonth();
+    const joursAffiches =
+      p4Vue === "annee"
+        ? Array.from({ length: 12 }, (_, monthIndex) => ({
+            monthIndex,
+            days: getMonthDays(selectedYear, monthIndex),
+          }))
+        : p4Vue === "semaine"
+          ? [{ monthIndex: selectedMonth, days: getWeekDays(selectedDate) }]
+          : [{ monthIndex: selectedMonth, days: getMonthDays(selectedYear, selectedMonth) }];
+    const p4DemandesUrgentes = p4Conges.filter((item) =>
+      ["demande", "previsionnel"].includes(item.statut)
+    );
+    const congesDuJour = (date) =>
+      p4Conges.filter((item) =>
+        isDateInRange(date, item.date_debut, item.date_fin)
+      );
+    const statutLabel = {
+      demande: "Demande",
+      previsionnel: "Prévisionnel",
+      valide: "Validé",
+      refuse: "Refusé",
+    };
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("home")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">P4</h2>
+
+        <div className="p4-alert-card">
+          <strong>{p4DemandesUrgentes.length}</strong>
+          <span>demande(s) ou prévisionnel(s) à suivre</span>
+        </div>
+
+        <div className="sector-switch">
+          <button
+            className={p4Vue === "annee" ? "active-sector" : ""}
+            onClick={() => setP4Vue("annee")}
+          >
+            Année
+          </button>
+          <button
+            className={p4Vue === "mois" ? "active-sector" : ""}
+            onClick={() => setP4Vue("mois")}
+          >
+            Mois
+          </button>
+          <button
+            className={p4Vue === "semaine" ? "active-sector" : ""}
+            onClick={() => setP4Vue("semaine")}
+          >
+            Semaine
+          </button>
+        </div>
+
+        <div className="date-field">
+          <span>Période affichée</span>
+          <input
+            type="date"
+            value={p4Date}
+            onChange={(e) => setP4Date(e.target.value)}
+          />
+        </div>
+
+        <div className="p4-legend">
+          <span className="p4-dot p4-work"></span> Travail
+          <span className="p4-dot p4-rest"></span> Repos
+          <span className="p4-badge demande">Demande</span>
+          <span className="p4-badge previsionnel">Prévisionnel</span>
+          <span className="p4-badge valide">Validé</span>
+        </div>
+
+        <div className="p4-calendar">
+          {joursAffiches.map((group) => (
+            <div className="p4-month" key={`${p4Vue}-${group.monthIndex}`}>
+              {p4Vue === "annee" && <h3>{MOIS_FR[group.monthIndex]}</h3>}
+
+              <div className={`p4-grid ${p4Vue === "annee" ? "year" : ""}`}>
+                {group.days.map((day) => {
+                  const cycle = getP4CycleInfo(day);
+                  const lignesJour = congesDuJour(day);
+                  const isToday = isSameDay(day, new Date());
+
+                  return (
+                    <div
+                      className={`p4-day ${cycle.isWorking ? "work" : "rest"} ${isToday ? "today" : ""}`}
+                      key={toDateInputValue(day)}
+                    >
+                      <div className="p4-day-head">
+                        <strong>{day.getDate()}</strong>
+                        <span>S{cycle.cycleWeek}</span>
+                      </div>
+                      <div className="p4-day-kind">
+                        {cycle.isWorking ? "Travail" : "Repos"}
+                      </div>
+
+                      {lignesJour.map((item) => (
+                        <div
+                          className={`p4-entry ${item.statut}`}
+                          key={`${item.id}-${toDateInputValue(day)}`}
+                        >
+                          <strong>{item.collegue}</strong>
+                          <span>{item.type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="admin-card">
+          <h3>{editingP4Id ? "Modifier P4" : "Demande / prévisionnel"}</h3>
+
+          <select
+            className="role-select"
+            value={p4Collegue}
+            onChange={(e) => setP4Collegue(e.target.value)}
+          >
+            <option value="">Collègue</option>
+            {COLLEGUES_CAISSE_CAFE.map((collegue) => (
+              <option key={collegue} value={collegue}>
+                {collegue}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="role-select"
+            value={p4Type}
+            onChange={(e) => setP4Type(e.target.value)}
+          >
+            {TYPES_CONGES_P4.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="role-select"
+            value={p4Statut}
+            onChange={(e) => setP4Statut(e.target.value)}
+          >
+            <option value="demande">Demande</option>
+            <option value="previsionnel">Prévisionnel</option>
+            {peutGererP4 && <option value="valide">Validé</option>}
+            {peutGererP4 && <option value="refuse">Refusé</option>}
+          </select>
+
+          <div className="date-field">
+            <span>Début</span>
+            <input
+              type="date"
+              value={p4DateDebut}
+              onChange={(e) => setP4DateDebut(e.target.value)}
+            />
+          </div>
+
+          <div className="date-field">
+            <span>Fin</span>
+            <input
+              type="date"
+              value={p4DateFin}
+              onChange={(e) => setP4DateFin(e.target.value)}
+            />
+          </div>
+
+          <textarea
+            placeholder="Commentaire"
+            value={p4Commentaire}
+            onChange={(e) => setP4Commentaire(e.target.value)}
+          />
+
+          <button className="admin-main-btn" onClick={enregistrerP4Conge}>
+            {editingP4Id ? "Enregistrer modification" : "Envoyer"}
+          </button>
+
+          {editingP4Id && (
+            <button className="cancel-btn" onClick={resetP4Form}>
+              Annuler modification
+            </button>
+          )}
+        </div>
+
+        <div className="admin-card">
+          <h3>Demandes et prévisionnels</h3>
+
+          {p4DemandesUrgentes.length === 0 && <p>Aucune demande en attente.</p>}
+
+          {p4DemandesUrgentes.map((item) => (
+            <div className={`user-line p4-request ${item.statut}`} key={item.id}>
+              <div>
+                <strong>
+                  {item.collegue} — {item.type}
+                </strong>
+                <br />
+                {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
+                <br />
+                Statut : {statutLabel[item.statut] || item.statut}
+                {item.commentaire && (
+                  <>
+                    <br />
+                    {item.commentaire}
+                  </>
+                )}
+              </div>
+
+              {peutGererP4 && (
+                <div className="user-buttons">
+                  <button className="edit-btn" onClick={() => modifierP4Conge(item)}>
+                    Modifier
+                  </button>
+                  <button
+                    className="edit-btn"
+                    onClick={() => changerStatutP4Conge(item, "valide")}
+                  >
+                    Valider
+                  </button>
+                  <button
+                    className="delete-btn"
+                    onClick={() => changerStatutP4Conge(item, "refuse")}
+                  >
+                    Refuser
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="admin-card">
+          <h3>P4 enregistré</h3>
+
+          {p4Conges.length === 0 && <p>Aucune ligne P4 enregistrée.</p>}
+
+          {p4Conges.map((item) => (
+            <div className={`user-line p4-request ${item.statut}`} key={item.id}>
+              <div>
+                <strong>
+                  {item.collegue} — {item.type}
+                </strong>
+                <br />
+                {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
+                <br />
+                Statut : {statutLabel[item.statut] || item.statut}
+              </div>
+
+              {peutGererP4 && (
+                <div className="user-buttons">
+                  <button className="edit-btn" onClick={() => modifierP4Conge(item)}>
+                    Modifier
+                  </button>
+                  <button className="delete-btn" onClick={() => supprimerP4Conge(item)}>
+                    Supprimer
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (page === "caisseCafe") {
     const peutGererCaisseCafe =
       currentUser?.role === "LE TÔLIER" ||
@@ -4736,6 +5262,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("favorisBac")}>
           ⭐
           <span>Favoris BAC</span>
+        </div>
+
+        <div className="menu-card" onClick={() => setPage("p4")}>
+          📅
+          <span>P4</span>
         </div>
 
         <div className="menu-card" onClick={() => setPage("caisseCafe")}>
