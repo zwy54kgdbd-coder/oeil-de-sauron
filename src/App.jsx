@@ -4947,6 +4947,14 @@ if (page === "identityDetails" && selectedIdentity) {
                 <br />
                 {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
                 <br />
+                Demandé le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
+                {item.created_by && (
+                  <>
+                    <br />
+                    Par : {item.created_by}
+                  </>
+                )}
+                <br />
                 Statut : {statutLabel[item.statut] || item.statut}
                 {item.commentaire && (
                   <>
@@ -4997,6 +5005,14 @@ if (page === "identityDetails" && selectedIdentity) {
                 <br />
                 {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
                 <br />
+                Demandé le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
+                {item.created_by && (
+                  <>
+                    <br />
+                    Par : {item.created_by}
+                  </>
+                )}
+                <br />
                 Statut : {statutLabel[item.statut] || item.statut}
               </div>
 
@@ -5006,9 +5022,19 @@ if (page === "identityDetails" && selectedIdentity) {
                     Modifier
                   </button>
                   {peutGererP4 && (
-                    <button className="delete-btn" onClick={() => supprimerP4Conge(item)}>
-                      Supprimer
-                    </button>
+                    <>
+                      {item.statut === "refuse" && (
+                        <button
+                          className="edit-btn"
+                          onClick={() => changerStatutP4Conge(item, "valide")}
+                        >
+                          Valider
+                        </button>
+                      )}
+                      <button className="delete-btn" onClick={() => supprimerP4Conge(item)}>
+                        Supprimer
+                      </button>
+                    </>
                   )}
                 </div>
               )}
