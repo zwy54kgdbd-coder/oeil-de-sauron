@@ -276,6 +276,7 @@ const [nouvelleIdentiteTelephone, setNouvelleIdentiteTelephone] = useState("");
 
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
+  const [retourIdentiteInterpellation, setRetourIdentiteInterpellation] = useState(false);
   const [alias, setAlias] = useState("");
   const [naissance, setNaissance] = useState("");
   const [lieuNaissance, setLieuNaissance] = useState("");
@@ -788,6 +789,39 @@ const chargerInterpellations = async () => {
     setInterpellationAuteurs((auteurs) => [...auteurs, auteur]);
     setInterpellationAuteurNom("");
     setInterpellationAuteurPrenom("");
+  };
+
+  const ouvrirIdentiteAuteurInterpellation = () => {
+    const nomRecherche = interpellationAuteurNom.trim().toLowerCase();
+    const prenomRecherche = interpellationAuteurPrenom.trim().toLowerCase();
+
+    if (!nomRecherche && !prenomRecherche) {
+      alert("Renseigne le nom ou le prénom de l'auteur.");
+      return;
+    }
+
+    const identiteExistante = identites.find((person) => {
+      const memeNom = nomRecherche
+        ? (person.nom || "").trim().toLowerCase() === nomRecherche
+        : true;
+      const memePrenom = prenomRecherche
+        ? (person.prenom || "").trim().toLowerCase() === prenomRecherche
+        : true;
+
+      return memeNom && memePrenom;
+    });
+
+    setRetourIdentiteInterpellation(true);
+
+    if (identiteExistante) {
+      modifierIdentite(identiteExistante);
+      return;
+    }
+
+    resetIdentityForm();
+    setNom(interpellationAuteurNom.trim());
+    setPrenom(interpellationAuteurPrenom.trim());
+    setPage("add");
   };
 
   const supprimerAuteurInterpellation = (index) => {
@@ -1455,6 +1489,16 @@ telephone,
     "identite",
     identiteId
   );
+
+  if (retourIdentiteInterpellation) {
+    setInterpellationAuteurs((auteurs) => [
+      ...new Set([...auteurs, libelleIdentite]),
+    ]);
+    setRetourIdentiteInterpellation(false);
+    resetIdentityForm();
+    setPage("interpellations");
+    return;
+  }
 
   resetIdentityForm();
   setPage("search");
@@ -3079,6 +3123,13 @@ if (page === "identityDetails" && selectedIdentity) {
         <button
           className="back-btn"
           onClick={() => {
+            if (retourIdentiteInterpellation) {
+              setRetourIdentiteInterpellation(false);
+              resetIdentityForm();
+              setPage("interpellations");
+              return;
+            }
+
             resetIdentityForm();
             setPage("home");
           }}
@@ -3695,7 +3746,7 @@ if (page === "identityDetails" && selectedIdentity) {
             onChange={(e) => setInterpellationAuteurPrenom(e.target.value)}
           />
 
-          <button className="edit-btn" onClick={ajouterAuteurInterpellation}>
+          <button className="edit-btn" onClick={ouvrirIdentiteAuteurInterpellation}>
             Ajouter auteur
           </button>
 
