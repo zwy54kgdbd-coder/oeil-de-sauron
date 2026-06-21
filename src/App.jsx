@@ -37,7 +37,7 @@ const TYPES_CONGES_P4 = [
   "STAGE",
   "OPTION",
 ];
-const P4_CYCLE_START = "2026-01-05";
+const P4_CYCLE_START = "2026-01-12";
 const createP4Period = () => ({
   tempId: `${Date.now()}-${Math.random()}`,
   type: "CA en cours",
