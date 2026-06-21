@@ -430,6 +430,54 @@ button {
   background: linear-gradient(to bottom, #c9972b, #8a5d12);
   color: black;
 }
+
+.photo-search-panel,
+.photo-search-results {
+  background: #111;
+  border: 1px solid rgba(184, 134, 11, 0.35);
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.photo-search-panel h3,
+.photo-search-results h3 {
+  color: #b8860b;
+  margin: 0 0 12px;
+}
+
+.photo-buttons {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.photo-btn {
+  flex: 1;
+  display: block;
+  text-align: center;
+  padding: 13px;
+  border-radius: 12px;
+  background: linear-gradient(to bottom, #c9972b, #8a5d12);
+  color: black;
+  font-weight: bold;
+}
+
+.photo-search-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.photo-search-img {
+  width: 92px;
+  height: 92px;
+  border-radius: 14px;
+  border: 1px solid rgba(184, 134, 11, 0.5);
+  object-fit: cover;
+  cursor: zoom-in;
+}
+
 .photo-zoom-overlay {
   position: fixed;
   inset: 0;

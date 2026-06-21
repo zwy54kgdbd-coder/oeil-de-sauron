@@ -138,6 +138,61 @@ function getPhotoPrincipale(person) {
   return photos[index] || photos[0] || person.photo || "";
 }
 
+function lireFichierEnDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function calculerEmpreinteImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+
+    if (!src.startsWith("data:")) {
+      image.crossOrigin = "anonymous";
+    }
+
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      const size = 8;
+      canvas.width = size;
+      canvas.height = size;
+
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0, size, size);
+
+      const pixels = context.getImageData(0, 0, size, size).data;
+      const gris = [];
+
+      for (let index = 0; index < pixels.length; index += 4) {
+        gris.push(
+          pixels[index] * 0.299 +
+            pixels[index + 1] * 0.587 +
+            pixels[index + 2] * 0.114
+        );
+      }
+
+      const moyenne = gris.reduce((total, value) => total + value, 0) / gris.length;
+      resolve(gris.map((value) => (value >= moyenne ? "1" : "0")).join(""));
+    };
+
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function distanceEmpreintes(a, b) {
+  if (!a || !b || a.length !== b.length) return 64;
+
+  return a.split("").reduce((total, value, index) => {
+    return total + (value === b[index] ? 0 : 1);
+  }, 0);
+}
+
 function formatDateFr(value) {
   if (!value) return "";
 
@@ -273,6 +328,10 @@ const [nouvelleIdentiteTelephone, setNouvelleIdentiteTelephone] = useState("");
 
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
+  const [recherchePhoto, setRecherchePhoto] = useState("");
+  const [recherchePhotoResults, setRecherchePhotoResults] = useState([]);
+  const [recherchePhotoLoading, setRecherchePhotoLoading] = useState(false);
+  const [recherchePhotoError, setRecherchePhotoError] = useState("");
   const [rechercheSecteur, setRechercheSecteur] = useState("");
   const [typeSecteur, setTypeSecteur] = useState("habituel");
 
@@ -2154,6 +2213,75 @@ const handleVehiculePhoto = async (e) => {
   alert("Utilisateur supprimé.");
 };
 
+  const rechercherParPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+
+    if (!file) return;
+
+    setRecherchePhotoError("");
+    setRecherchePhotoLoading(true);
+    setRecherchePhotoResults([]);
+
+    try {
+      const photoRecherche = await lireFichierEnDataUrl(file);
+      const empreinteRecherche = await calculerEmpreinteImage(photoRecherche);
+      const candidats = [];
+
+      for (const person of identites) {
+        const photosPersonne = getPhotos(person);
+        let meilleurScore = null;
+        let meilleurePhoto = "";
+
+        for (const photoPersonne of photosPersonne) {
+          try {
+            const empreintePersonne = await calculerEmpreinteImage(photoPersonne);
+            const distance = distanceEmpreintes(
+              empreinteRecherche,
+              empreintePersonne
+            );
+
+            if (meilleurScore === null || distance < meilleurScore.distance) {
+              meilleurScore = { distance };
+              meilleurePhoto = photoPersonne;
+            }
+          } catch {
+            // Certaines anciennes images peuvent ne pas être lisibles par le canvas.
+          }
+        }
+
+        if (meilleurScore) {
+          candidats.push({
+            ...person,
+            photoResultat: meilleurePhoto,
+            proximite: Math.max(
+              0,
+              Math.round((1 - meilleurScore.distance / 64) * 100)
+            ),
+          });
+        }
+      }
+
+      setRecherchePhoto(photoRecherche);
+      setRecherchePhotoResults(
+        candidats
+          .sort((a, b) => b.proximite - a.proximite)
+          .slice(0, 12)
+      );
+    } catch {
+      setRecherchePhotoError("Impossible d'analyser cette photo.");
+    } finally {
+      setRecherchePhotoLoading(false);
+    }
+  };
+
+  const resetRecherchePhoto = () => {
+    setRecherchePhoto("");
+    setRecherchePhotoResults([]);
+    setRecherchePhotoError("");
+    setRecherchePhotoLoading(false);
+  };
+
   const results = trierIdentitesParNom([...fakePeople, ...identites].filter((person) => {
     const fullText = `
       ${person.nom || ""}
@@ -2228,6 +2356,103 @@ const handleVehiculePhoto = async (e) => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+
+        <div className="photo-search-panel">
+          <h3>Recherche par photo</h3>
+
+          <div className="photo-buttons">
+            <label className="photo-btn">
+              Prendre une photo
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={rechercherParPhoto}
+              />
+            </label>
+
+            <label className="photo-btn">
+              Galerie photo
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={rechercherParPhoto}
+              />
+            </label>
+          </div>
+
+          {recherchePhoto && (
+            <div className="photo-search-preview">
+              <img
+                src={recherchePhoto}
+                alt="photo recherchée"
+                className="photo-search-img"
+                onClick={() => setPhotoZoom(recherchePhoto)}
+              />
+
+              <button className="delete-btn" onClick={resetRecherchePhoto}>
+                Effacer
+              </button>
+            </div>
+          )}
+
+          {recherchePhotoLoading && <p>Analyse de la photo en cours...</p>}
+          {recherchePhotoError && <p>{recherchePhotoError}</p>}
+        </div>
+
+        {recherchePhoto && !recherchePhotoLoading && (
+          <div className="photo-search-results">
+            <h3>Résultats photo</h3>
+
+            {recherchePhotoResults.length === 0 && (
+              <div className="admin-card">Aucune photo comparable trouvée.</div>
+            )}
+
+            <div className="results-list">
+              {recherchePhotoResults.map((person) => (
+                <div
+                  className="person-card"
+                  key={`photo-${person.id}`}
+                  onClick={() => {
+                    setSelectedIdentity(person);
+                    setIdentityDetailsReturnPage("search");
+                    setPage("identityDetails");
+                  }}
+                >
+                  <div className="avatar identity-photo">
+                    <img
+                      src={person.photoResultat || getPhotoPrincipale(person)}
+                      alt="photo"
+                      className="person-photo"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setPhotoZoom(
+                          person.photoResultat || getPhotoPrincipale(person)
+                        );
+                      }}
+                    />
+                  </div>
+
+                  <div className="person-info">
+                    <div className="person-name">
+                      {person.nom} {person.prenom}
+                    </div>
+                    {person.alias && (
+                      <div className="person-alias">Alias : {person.alias}</div>
+                    )}
+                    <div>Proximité visuelle : {person.proximite}%</div>
+                    {person.secteur && (
+                      <div>Secteur habituel : {person.secteur}</div>
+                    )}
+                    {person.faits && <div>Secteur faits : {person.faits}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="results-list">
           {vehiculeResults.map((item) => (
