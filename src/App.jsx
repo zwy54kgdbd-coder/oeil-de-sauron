@@ -170,6 +170,15 @@ function getP4NatureLabel(item) {
   return getP4Nature(item) === "previsionnel" ? "Prévisionnel" : "Demande";
 }
 
+function isP4NatureColumnMissing(error) {
+  return (error?.message || "").includes("'nature' column");
+}
+
+function removeP4Nature(payload) {
+  const { nature, ...rest } = payload;
+  return rest;
+}
+
 function normaliserPlaque(value) {
   return (value || "")
     .trim()
@@ -1382,9 +1391,17 @@ const chargerP4Conges = async () => {
       updated_by: currentUser?.username || "Inconnu",
     }));
 
-    const result = editingP4Id
+    let result = editingP4Id
       ? await supabase.from("p4_conges").update(payloads[0]).eq("id", editingP4Id)
       : await supabase.from("p4_conges").insert(payloads);
+
+    if (isP4NatureColumnMissing(result.error)) {
+      const fallbackPayloads = payloads.map(removeP4Nature);
+
+      result = editingP4Id
+        ? await supabase.from("p4_conges").update(fallbackPayloads[0]).eq("id", editingP4Id)
+        : await supabase.from("p4_conges").insert(fallbackPayloads);
+    }
 
     if (result.error) {
       alert("Erreur P4 : " + result.error.message);
@@ -1428,14 +1445,24 @@ const chargerP4Conges = async () => {
       return;
     }
 
-    const { error } = await supabase
+    const payload = {
+      statut,
+      nature: item.nature || getP4Nature(item),
+      updated_by: currentUser?.username || "Inconnu",
+    };
+    let { error } = await supabase
       .from("p4_conges")
-      .update({
-        statut,
-        nature: item.nature || getP4Nature(item),
-        updated_by: currentUser?.username || "Inconnu",
-      })
+      .update(payload)
       .eq("id", item.id);
+
+    if (isP4NatureColumnMissing(error)) {
+      const retry = await supabase
+        .from("p4_conges")
+        .update(removeP4Nature(payload))
+        .eq("id", item.id);
+
+      error = retry.error;
+    }
 
     if (error) {
       alert("Erreur statut P4 : " + error.message);
