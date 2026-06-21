@@ -110,6 +110,10 @@ function getIdentite(identites, individuId) {
   return identites.find((item) => String(item.id) === String(individuId));
 }
 
+function normaliserTexteIdentite(value) {
+  return (value || "").trim().toLowerCase();
+}
+
 function uniquePhotos(values) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -1634,6 +1638,26 @@ setTelephone("");
   if (!nom && !prenom && !alias) {
     alert("Renseigne au moins un nom, un prénom ou un alias.");
     return;
+  }
+
+  const nomClean = normaliserTexteIdentite(nom);
+  const prenomClean = normaliserTexteIdentite(prenom);
+
+  if (!editingId && nomClean && prenomClean) {
+    const identiteExistante = identites.find((item) => {
+      return (
+        normaliserTexteIdentite(item.nom) === nomClean &&
+        normaliserTexteIdentite(item.prenom) === prenomClean
+      );
+    });
+
+    if (identiteExistante) {
+      const continuer = window.confirm(
+        "Attention identité existante, vérifiez s'il ne s'agit pas d'un homonyme."
+      );
+
+      if (!continuer) return;
+    }
   }
 
   const photoPrincipale = photos[photoPrincipaleIndex] || photo || "";
