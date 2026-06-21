@@ -310,6 +310,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [interpellations, setInterpellations] = useState([]);
   const [selectedInterpellationYear, setSelectedInterpellationYear] = useState(null);
   const [selectedInterpellationMonth, setSelectedInterpellationMonth] = useState(null);
+  const [anneesInterpellationsAjoutees, setAnneesInterpellationsAjoutees] = useState([]);
   const [editingInterpellationId, setEditingInterpellationId] = useState(null);
   const [interpellationDate, setInterpellationDate] = useState("");
   const [interpellationType, setInterpellationType] = useState("initiative");
@@ -891,6 +892,26 @@ const chargerInterpellations = async () => {
       `Suppression interpellation : ${item?.infractions || id}`,
       "interpellation",
       id
+    );
+  };
+
+  const ajouterAnneeInterpellation = () => {
+    const anneesExistantes = [
+      new Date().getFullYear(),
+      ...anneesInterpellationsAjoutees,
+      ...interpellations.map((item) =>
+        new Date(item.date_interpellation).getFullYear()
+      ),
+    ];
+    const nouvelleAnnee = Math.max(...anneesExistantes) + 1;
+
+    setAnneesInterpellationsAjoutees((annees) => [
+      ...new Set([...annees, nouvelleAnnee]),
+    ]);
+    ajouterHistorique(
+      `Ajout année interpellations : ${nouvelleAnnee}`,
+      "interpellation_annee",
+      nouvelleAnnee
     );
   };
 
@@ -3423,6 +3444,7 @@ if (page === "identityDetails" && selectedIdentity) {
     const annees = [
       ...new Set([
         currentYear,
+        ...anneesInterpellationsAjoutees,
         ...interpellations.map((item) => getInterpellationYear(item)),
       ]),
     ].sort((a, b) => b - a);
@@ -3446,6 +3468,10 @@ if (page === "identityDetails" && selectedIdentity) {
           </button>
 
           <h2 className="section-title">Interpellations</h2>
+
+          <button className="admin-main-btn" onClick={ajouterAnneeInterpellation}>
+            Ajouter une année
+          </button>
 
           <div className="results-list">
             {annees.map((annee) => {
