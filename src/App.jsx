@@ -3626,6 +3626,7 @@ if (page === "identityDetails" && selectedIdentity) {
       );
     };
     const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
     const annees = [
       ...new Set([
         currentYear,
@@ -3735,10 +3736,12 @@ if (page === "identityDetails" && selectedIdentity) {
                 (item) => getInterpellationMonth(item) === index
               );
               const statsMois = statsInfractions(fichesMois);
+              const moisEnCours =
+                selectedInterpellationYear === currentYear && index === currentMonth;
 
               return (
                 <div
-                  className="person-card"
+                  className={`person-card ${moisEnCours ? "current-month-card" : ""}`}
                   key={mois}
                   onClick={() => {
                     setSelectedInterpellationMonth(index);
@@ -3758,6 +3761,9 @@ if (page === "identityDetails" && selectedIdentity) {
 
                   <div className="person-info">
                     <div className="person-name">{mois}</div>
+                    {moisEnCours && (
+                      <div className="current-month-label">Mois en cours</div>
+                    )}
                     <div>Nombre de fiches : {fichesMois.length}</div>
                     <div className="important-amount">
                       Interpellés : {totalInterpelles(fichesMois)}

@@ -140,6 +140,22 @@ button {
   transform: scale(1.03);
   border-color: #b8860b;
 }
+
+.current-month-card {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.45);
+}
+
+.current-month-card .person-name,
+.current-month-label {
+  color: #d4af37;
+}
+
+.current-month-label {
+  font-weight: 800;
+  margin: 4px 0;
+}
+
 .back-btn {
   background: transparent;
   color: #b8860b;
