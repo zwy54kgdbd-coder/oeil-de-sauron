@@ -1,5 +1,6 @@
 import "./App.css";
 import { useEffect, useState } from "react";
+import * as faceapi from "@vladmandic/face-api";
 import { supabase } from "./supabase";
 
 const initialUsers = [];
@@ -37,6 +38,8 @@ const MOIS_FR = [
   "Novembre",
   "Décembre",
 ];
+const FACE_API_MODEL_URL = "/models/face-api";
+let faceApiModelsPromise = null;
 
 function safeParseArray(value) {
   try {
@@ -148,7 +151,7 @@ function lireFichierEnDataUrl(file) {
   });
 }
 
-function calculerEmpreinteImage(src) {
+function chargerImagePourAnalyse(src) {
   return new Promise((resolve, reject) => {
     const image = new Image();
 
@@ -156,41 +159,51 @@ function calculerEmpreinteImage(src) {
       image.crossOrigin = "anonymous";
     }
 
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      const size = 8;
-      canvas.width = size;
-      canvas.height = size;
-
-      const context = canvas.getContext("2d");
-      context.drawImage(image, 0, 0, size, size);
-
-      const pixels = context.getImageData(0, 0, size, size).data;
-      const gris = [];
-
-      for (let index = 0; index < pixels.length; index += 4) {
-        gris.push(
-          pixels[index] * 0.299 +
-            pixels[index + 1] * 0.587 +
-            pixels[index + 2] * 0.114
-        );
-      }
-
-      const moyenne = gris.reduce((total, value) => total + value, 0) / gris.length;
-      resolve(gris.map((value) => (value >= moyenne ? "1" : "0")).join(""));
-    };
-
+    image.onload = () => resolve(image);
     image.onerror = reject;
     image.src = src;
   });
 }
 
-function distanceEmpreintes(a, b) {
-  if (!a || !b || a.length !== b.length) return 64;
+function chargerModelesVisage() {
+  if (!faceApiModelsPromise) {
+    faceApiModelsPromise = Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_API_MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_API_MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_API_MODEL_URL),
+    ]);
+  }
 
-  return a.split("").reduce((total, value, index) => {
-    return total + (value === b[index] ? 0 : 1);
-  }, 0);
+  return faceApiModelsPromise;
+}
+
+async function extraireDescripteurVisage(src) {
+  await chargerModelesVisage();
+
+  const image = await chargerImagePourAnalyse(src);
+  const detection = await faceapi
+    .detectSingleFace(
+      image,
+      new faceapi.TinyFaceDetectorOptions({
+        inputSize: 416,
+        scoreThreshold: 0.35,
+      })
+    )
+    .withFaceLandmarks(true)
+    .withFaceDescriptor();
+
+  return detection || null;
+}
+
+function calculerScoreVisage(distance) {
+  return Math.max(0, Math.min(100, Math.round((1 - distance / 0.75) * 100)));
+}
+
+function getNiveauCorrespondance(distance) {
+  if (distance <= 0.5) return "Très proche";
+  if (distance <= 0.6) return "Proche";
+  if (distance <= 0.75) return "À vérifier";
+  return "Faible";
 }
 
 function formatDateFr(value) {
@@ -2225,7 +2238,14 @@ const handleVehiculePhoto = async (e) => {
 
     try {
       const photoRecherche = await lireFichierEnDataUrl(file);
-      const empreinteRecherche = await calculerEmpreinteImage(photoRecherche);
+      const visageRecherche = await extraireDescripteurVisage(photoRecherche);
+
+      if (!visageRecherche) {
+        setRecherchePhoto(photoRecherche);
+        setRecherchePhotoError("Aucun visage détecté sur cette photo.");
+        return;
+      }
+
       const candidats = [];
 
       for (const person of identites) {
@@ -2235,18 +2255,24 @@ const handleVehiculePhoto = async (e) => {
 
         for (const photoPersonne of photosPersonne) {
           try {
-            const empreintePersonne = await calculerEmpreinteImage(photoPersonne);
-            const distance = distanceEmpreintes(
-              empreinteRecherche,
-              empreintePersonne
+            const visagePersonne = await extraireDescripteurVisage(photoPersonne);
+
+            if (!visagePersonne) continue;
+
+            const distance = faceapi.euclideanDistance(
+              visageRecherche.descriptor,
+              visagePersonne.descriptor
             );
 
             if (meilleurScore === null || distance < meilleurScore.distance) {
-              meilleurScore = { distance };
+              meilleurScore = {
+                distance,
+                detection: visagePersonne.detection?.score || 0,
+              };
               meilleurePhoto = photoPersonne;
             }
           } catch {
-            // Certaines anciennes images peuvent ne pas être lisibles par le canvas.
+            // Certaines anciennes images peuvent ne pas être lisibles par le moteur visage.
           }
         }
 
@@ -2254,10 +2280,9 @@ const handleVehiculePhoto = async (e) => {
           candidats.push({
             ...person,
             photoResultat: meilleurePhoto,
-            proximite: Math.max(
-              0,
-              Math.round((1 - meilleurScore.distance / 64) * 100)
-            ),
+            proximite: calculerScoreVisage(meilleurScore.distance),
+            distanceVisage: meilleurScore.distance,
+            niveauCorrespondance: getNiveauCorrespondance(meilleurScore.distance),
           });
         }
       }
@@ -2265,11 +2290,11 @@ const handleVehiculePhoto = async (e) => {
       setRecherchePhoto(photoRecherche);
       setRecherchePhotoResults(
         candidats
-          .sort((a, b) => b.proximite - a.proximite)
+          .sort((a, b) => a.distanceVisage - b.distanceVisage)
           .slice(0, 12)
       );
     } catch {
-      setRecherchePhotoError("Impossible d'analyser cette photo.");
+      setRecherchePhotoError("Impossible d'analyser cette photo avec le moteur visage.");
     } finally {
       setRecherchePhotoLoading(false);
     }
@@ -2398,7 +2423,9 @@ const handleVehiculePhoto = async (e) => {
             </div>
           )}
 
-          {recherchePhotoLoading && <p>Analyse de la photo en cours...</p>}
+          {recherchePhotoLoading && (
+            <p>Détection du visage et comparaison en cours...</p>
+          )}
           {recherchePhotoError && <p>{recherchePhotoError}</p>}
         </div>
 
@@ -2407,7 +2434,9 @@ const handleVehiculePhoto = async (e) => {
             <h3>Résultats photo</h3>
 
             {recherchePhotoResults.length === 0 && (
-              <div className="admin-card">Aucune photo comparable trouvée.</div>
+              <div className="admin-card">
+                Aucun visage comparable trouvé dans les photos enregistrées.
+              </div>
             )}
 
             <div className="results-list">
@@ -2442,7 +2471,11 @@ const handleVehiculePhoto = async (e) => {
                     {person.alias && (
                       <div className="person-alias">Alias : {person.alias}</div>
                     )}
-                    <div>Proximité visuelle : {person.proximite}%</div>
+                    <div className="important-amount">
+                      Score visage : {person.proximite}%
+                    </div>
+                    <div>Résultat : {person.niveauCorrespondance}</div>
+                    <div>Distance technique : {person.distanceVisage.toFixed(3)}</div>
                     {person.secteur && (
                       <div>Secteur habituel : {person.secteur}</div>
                     )}
