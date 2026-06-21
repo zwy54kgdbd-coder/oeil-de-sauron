@@ -909,6 +909,39 @@ const chargerProduitsCaisseCafe = async () => {
     );
   };
 
+  const enregistrerSoldesRestantsCaisseCafe = async (collegues) => {
+    for (const collegue of collegues) {
+      const totalConsomme = caisseCafe
+        .filter((item) => item.collegue === collegue)
+        .reduce((total, item) => total + Number(item.total || 0), 0);
+      const soldeExistant = caisseCafeSoldes.find(
+        (item) => item.collegue === collegue
+      );
+
+      if (!soldeExistant) continue;
+
+      const soldeRestant = Math.max(
+        Number(soldeExistant.solde || 0) - totalConsomme,
+        0
+      );
+
+      const { error } = await supabase
+        .from("caisse_cafe_soldes")
+        .update({
+          solde: soldeRestant,
+          updated_by: currentUser?.username || "Inconnu",
+        })
+        .eq("id", soldeExistant.id);
+
+      if (error) {
+        alert("Erreur calcul solde restant : " + error.message);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const resetCaisseCafe = async () => {
     if (currentUser?.role === "MEMBRE") {
       alert("Seul un administrateur peut faire un reset.");
@@ -916,10 +949,16 @@ const chargerProduitsCaisseCafe = async () => {
     }
 
     const confirmation = window.confirm(
-      "Remettre les consommations à zéro et ajouter un café à 2 € à chaque collègue ? Les soldes positifs seront déduits de 2 € quand c'est possible."
+      "Remettre les consommations à zéro, conserver le solde restant réel, puis ajouter un café à 2 € à chaque collègue ?"
     );
 
     if (!confirmation) return;
+
+    const soldesOk = await enregistrerSoldesRestantsCaisseCafe(
+      COLLEGUES_CAISSE_CAFE
+    );
+
+    if (!soldesOk) return;
 
     const { error: deleteError } = await supabase
       .from("caisse_cafe")
@@ -952,33 +991,10 @@ const chargerProduitsCaisseCafe = async () => {
       return;
     }
 
-    const soldesMaj = caisseCafeSoldes
-      .filter((item) => COLLEGUES_CAISSE_CAFE.includes(item.collegue))
-      .map((item) => ({
-        id: item.id,
-        solde: Math.max(Number(item.solde || 0) - 2, 0),
-        updated_by: currentUser?.username || "Inconnu",
-      }));
-
-    for (const soldeItem of soldesMaj) {
-      const { error: soldeError } = await supabase
-        .from("caisse_cafe_soldes")
-        .update({
-          solde: soldeItem.solde,
-          updated_by: soldeItem.updated_by,
-        })
-        .eq("id", soldeItem.id);
-
-      if (soldeError) {
-        alert("Erreur déduction solde après remise à zéro : " + soldeError.message);
-        return;
-      }
-    }
-
     await chargerCaisseCafe();
     await chargerCaisseCafeSoldes();
     ajouterHistorique(
-      "Remise à zéro caisse café : café à 2 € pour chaque collègue avec déduction des soldes positifs",
+      "Remise à zéro caisse café : solde restant conservé et café à 2 € pour chaque collègue",
       "caisse_cafe"
     );
   };
@@ -995,6 +1011,10 @@ const chargerProduitsCaisseCafe = async () => {
 
     if (!confirmation) return;
 
+    const soldesOk = await enregistrerSoldesRestantsCaisseCafe([collegue]);
+
+    if (!soldesOk) return;
+
     const { error } = await supabase
       .from("caisse_cafe")
       .delete()
@@ -1006,6 +1026,7 @@ const chargerProduitsCaisseCafe = async () => {
     }
 
     await chargerCaisseCafe();
+    await chargerCaisseCafeSoldes();
     ajouterHistorique(
       `Remise à zéro caisse café individuelle : ${collegue}`,
       "caisse_cafe"
