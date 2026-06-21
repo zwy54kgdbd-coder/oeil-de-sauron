@@ -299,10 +299,10 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [caisseCafe, setCaisseCafe] = useState([]);
   const [caisseCafeSoldes, setCaisseCafeSoldes] = useState([]);
   const [produitsCaisseCafe, setProduitsCaisseCafe] = useState(PRODUITS_CAISSE_CAFE_DEFAUT);
-  const [caisseCafeCollegue, setCaisseCafeCollegue] = useState(COLLEGUES_CAISSE_CAFE[0]);
-  const [caisseCafeProduit, setCaisseCafeProduit] = useState("boisson_sans_alcool");
-  const [caisseCafeQuantite, setCaisseCafeQuantite] = useState("1");
-  const [caisseCafePrix, setCaisseCafePrix] = useState("1");
+  const [caisseCafeCollegue, setCaisseCafeCollegue] = useState("");
+  const [caisseCafeProduit, setCaisseCafeProduit] = useState("");
+  const [caisseCafeQuantite, setCaisseCafeQuantite] = useState("");
+  const [caisseCafePrix, setCaisseCafePrix] = useState("");
   const [editingCaisseCafeId, setEditingCaisseCafeId] = useState(null);
   const [soldeCafeCollegue, setSoldeCafeCollegue] = useState(COLLEGUES_CAISSE_CAFE[0]);
   const [soldeCafeMontant, setSoldeCafeMontant] = useState("");
@@ -998,7 +998,7 @@ const chargerInterpellations = async () => {
     const produitConfig = produitsCaisseCafe.find((item) => item.value === produit);
 
     setCaisseCafeProduit(produit);
-    setCaisseCafePrix(String(produitConfig?.prix || 0));
+    setCaisseCafePrix(produitConfig ? String(produitConfig.prix) : "");
   };
 
   const enregistrerConsommationCaisseCafe = async () => {
@@ -1013,6 +1013,11 @@ const chargerInterpellations = async () => {
       return;
     }
 
+    if (!caisseCafeProduit || !produitConfig) {
+      alert("Choisis un produit.");
+      return;
+    }
+
     if (!quantite || quantite <= 0) {
       alert("Renseigne une quantité valide.");
       return;
@@ -1024,10 +1029,20 @@ const chargerInterpellations = async () => {
     }
 
     const total = quantite * prixUnitaire;
+    const libelleProduit = produitConfig?.label || caisseCafeProduit;
+
+    if (!editingCaisseCafeId) {
+      const confirmation = window.confirm(
+        `Confirmer l'ajout ?\n\nCollègue : ${caisseCafeCollegue}\nProduit : ${libelleProduit}\nQuantité : ${quantite}\nTotal : ${formatMontantEuro(total)}`
+      );
+
+      if (!confirmation) return;
+    }
+
     const ficheConsommation = {
       collegue: caisseCafeCollegue,
       produit: caisseCafeProduit,
-      produit_label: produitConfig?.label || caisseCafeProduit,
+      produit_label: libelleProduit,
       quantite,
       prix_unitaire: prixUnitaire,
       total,
@@ -1046,11 +1061,14 @@ const chargerInterpellations = async () => {
       return;
     }
 
-    setCaisseCafeQuantite("1");
+    setCaisseCafeCollegue("");
+    setCaisseCafeProduit("");
+    setCaisseCafeQuantite("");
+    setCaisseCafePrix("");
     setEditingCaisseCafeId(null);
     await chargerCaisseCafe();
     ajouterHistorique(
-      `${editingCaisseCafeId ? "Modification" : "Ajout"} caisse café : ${caisseCafeCollegue} — ${produitConfig?.label || caisseCafeProduit} x${quantite} (${formatMontantEuro(total)})`,
+      `${editingCaisseCafeId ? "Modification" : "Ajout"} caisse café : ${caisseCafeCollegue} — ${libelleProduit} x${quantite} (${formatMontantEuro(total)})`,
       "caisse_cafe"
     );
   };
@@ -1073,10 +1091,10 @@ const chargerInterpellations = async () => {
 
   const annulerModificationCaisseCafe = () => {
     setEditingCaisseCafeId(null);
-    setCaisseCafeCollegue(COLLEGUES_CAISSE_CAFE[0]);
-    setCaisseCafeProduit("boisson_sans_alcool");
-    setCaisseCafeQuantite("1");
-    setCaisseCafePrix("1");
+    setCaisseCafeCollegue("");
+    setCaisseCafeProduit("");
+    setCaisseCafeQuantite("");
+    setCaisseCafePrix("");
   };
 
   const ajouterProduitCaisseCafe = async () => {
@@ -3884,6 +3902,7 @@ if (page === "identityDetails" && selectedIdentity) {
             value={caisseCafeCollegue}
             onChange={(e) => setCaisseCafeCollegue(e.target.value)}
           >
+            <option value="">Choisir un collègue</option>
             {COLLEGUES_CAISSE_CAFE.map((collegue) => (
               <option key={collegue} value={collegue}>
                 {collegue}
@@ -3896,6 +3915,7 @@ if (page === "identityDetails" && selectedIdentity) {
             value={caisseCafeProduit}
             onChange={(e) => changerProduitCaisseCafe(e.target.value)}
           >
+            <option value="">Choisir un produit</option>
             {produitsCaisseCafe.filter((produit) => produit.value !== "cafe").map((produit) => (
               <option key={produit.value} value={produit.value}>
                 {produit.label}
