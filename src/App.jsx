@@ -23,6 +23,20 @@ const PRODUITS_CAISSE_CAFE_DEFAUT = [
   { value: "condiments_100", label: "Condiments 1 €", prix: 1 },
   { value: "cafe", label: "Café", prix: 2 },
 ];
+const MOIS_FR = [
+  "Janvier",
+  "Février",
+  "Mars",
+  "Avril",
+  "Mai",
+  "Juin",
+  "Juillet",
+  "Août",
+  "Septembre",
+  "Octobre",
+  "Novembre",
+  "Décembre",
+];
 
 function safeParseArray(value) {
   try {
@@ -293,6 +307,16 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [soldeCafeMontant, setSoldeCafeMontant] = useState("");
   const [nouveauProduitCafeNom, setNouveauProduitCafeNom] = useState("");
   const [nouveauProduitCafePrix, setNouveauProduitCafePrix] = useState("");
+  const [interpellations, setInterpellations] = useState([]);
+  const [selectedInterpellationYear, setSelectedInterpellationYear] = useState(null);
+  const [selectedInterpellationMonth, setSelectedInterpellationMonth] = useState(null);
+  const [editingInterpellationId, setEditingInterpellationId] = useState(null);
+  const [interpellationDate, setInterpellationDate] = useState("");
+  const [interpellationType, setInterpellationType] = useState("initiative");
+  const [interpellationAuteurNom, setInterpellationAuteurNom] = useState("");
+  const [interpellationAuteurPrenom, setInterpellationAuteurPrenom] = useState("");
+  const [interpellationInfractions, setInterpellationInfractions] = useState("");
+  const [interpellationNombre, setInterpellationNombre] = useState("1");
     useEffect(() => {
   chargerIdentites();
   chargerVehicules();
@@ -301,6 +325,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   chargerCaisseCafe();
   chargerCaisseCafeSoldes();
   chargerProduitsCaisseCafe();
+  chargerInterpellations();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -407,6 +432,21 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const interpellationsChannel = supabase
+    .channel("realtime-interpellations")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "interpellations",
+      },
+      () => {
+        chargerInterpellations();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
@@ -415,6 +455,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     supabase.removeChannel(caisseCafeChannel);
     supabase.removeChannel(caisseCafeSoldesChannel);
     supabase.removeChannel(caisseCafeProduitsChannel);
+    supabase.removeChannel(interpellationsChannel);
   };
 }, []);
 
@@ -615,6 +656,21 @@ const chargerProduitsCaisseCafe = async () => {
   ]);
 };
 
+const chargerInterpellations = async () => {
+  const { data, error } = await supabase
+    .from("interpellations")
+    .select("*")
+    .order("date_interpellation", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR INTERPELLATIONS :", error);
+    return;
+  }
+
+  setInterpellations(data || []);
+};
+
   const saveUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     localStorage.setItem("users", JSON.stringify(updatedUsers));
@@ -696,6 +752,113 @@ const chargerProduitsCaisseCafe = async () => {
       `${nouveauStatut ? "Épinglage" : "Retrait favori"} véhicule BAC : ${getNomVehicule(item)}`,
       "vehicule",
       item.id
+    );
+  };
+
+  const getDateInterpellationSelectionnee = () => {
+    const year = selectedInterpellationYear || new Date().getFullYear();
+    const month = selectedInterpellationMonth ?? new Date().getMonth();
+    const day = String(new Date().getDate()).padStart(2, "0");
+
+    return `${year}-${String(month + 1).padStart(2, "0")}-${day}`;
+  };
+
+  const resetInterpellationForm = () => {
+    setEditingInterpellationId(null);
+    setInterpellationDate(getDateInterpellationSelectionnee());
+    setInterpellationType("initiative");
+    setInterpellationAuteurNom("");
+    setInterpellationAuteurPrenom("");
+    setInterpellationInfractions("");
+    setInterpellationNombre("1");
+  };
+
+  const enregistrerInterpellation = async () => {
+    const nombreInterpelles = Number(interpellationNombre);
+
+    if (!interpellationDate) {
+      alert("Renseigne la date.");
+      return;
+    }
+
+    if (!interpellationAuteurNom.trim() && !interpellationAuteurPrenom.trim()) {
+      alert("Renseigne le nom ou le prénom de l'auteur.");
+      return;
+    }
+
+    if (!interpellationInfractions.trim()) {
+      alert("Renseigne l'infraction.");
+      return;
+    }
+
+    if (!nombreInterpelles || nombreInterpelles <= 0) {
+      alert("Renseigne un nombre d'interpellés valide.");
+      return;
+    }
+
+    const fiche = {
+      date_interpellation: interpellationDate,
+      type: interpellationType,
+      auteur_nom: interpellationAuteurNom.trim(),
+      auteur_prenom: interpellationAuteurPrenom.trim(),
+      infractions: interpellationInfractions.trim(),
+      nombre_interpelles: nombreInterpelles,
+      created_by: currentUser?.username || "Inconnu",
+    };
+
+    const result = editingInterpellationId
+      ? await supabase
+          .from("interpellations")
+          .update(fiche)
+          .eq("id", editingInterpellationId)
+      : await supabase.from("interpellations").insert([fiche]);
+
+    if (result.error) {
+      alert("Erreur interpellation : " + result.error.message);
+      return;
+    }
+
+    await chargerInterpellations();
+    ajouterHistorique(
+      `${editingInterpellationId ? "Modification" : "Création"} interpellation : ${fiche.infractions} (${nombreInterpelles})`,
+      "interpellation",
+      editingInterpellationId
+    );
+    resetInterpellationForm();
+  };
+
+  const modifierInterpellation = (item) => {
+    setEditingInterpellationId(item.id);
+    setInterpellationDate(item.date_interpellation || "");
+    setInterpellationType(item.type || "initiative");
+    setInterpellationAuteurNom(item.auteur_nom || "");
+    setInterpellationAuteurPrenom(item.auteur_prenom || "");
+    setInterpellationInfractions(item.infractions || "");
+    setInterpellationNombre(String(item.nombre_interpelles || 1));
+  };
+
+  const supprimerInterpellation = async (id) => {
+    const confirmation = window.confirm("Supprimer cette fiche interpellation ?");
+
+    if (!confirmation) return;
+
+    const item = interpellations.find((entry) => String(entry.id) === String(id));
+
+    const { error } = await supabase
+      .from("interpellations")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      alert("Erreur suppression interpellation : " + error.message);
+      return;
+    }
+
+    await chargerInterpellations();
+    ajouterHistorique(
+      `Suppression interpellation : ${item?.infractions || id}`,
+      "interpellation",
+      id
     );
   };
 
@@ -3206,6 +3369,273 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  if (page === "interpellations") {
+    const getInterpellationDate = (item) => new Date(item.date_interpellation);
+    const getInterpellationYear = (item) => getInterpellationDate(item).getFullYear();
+    const getInterpellationMonth = (item) => getInterpellationDate(item).getMonth();
+    const totalInterpelles = (items) =>
+      items.reduce((total, item) => total + Number(item.nombre_interpelles || 0), 0);
+    const statsInfractions = (items) => {
+      const stats = items.reduce((acc, item) => {
+        const infraction = item.infractions || "Infraction non renseignée";
+        acc[infraction] = (acc[infraction] || 0) + Number(item.nombre_interpelles || 0);
+
+        return acc;
+      }, {});
+
+      return Object.entries(stats).sort((a, b) =>
+        a[0].localeCompare(b[0], "fr", { sensitivity: "base" })
+      );
+    };
+    const currentYear = new Date().getFullYear();
+    const annees = [
+      ...new Set([
+        currentYear,
+        ...interpellations.map((item) => getInterpellationYear(item)),
+      ]),
+    ].sort((a, b) => b - a);
+    const interpellationsAnnee = selectedInterpellationYear
+      ? interpellations.filter(
+          (item) => getInterpellationYear(item) === selectedInterpellationYear
+        )
+      : [];
+    const interpellationsMois =
+      selectedInterpellationYear && selectedInterpellationMonth !== null
+        ? interpellationsAnnee.filter(
+            (item) => getInterpellationMonth(item) === selectedInterpellationMonth
+          )
+        : [];
+
+    if (!selectedInterpellationYear) {
+      return (
+        <div className="home-page">
+          <button className="back-btn" onClick={() => setPage("home")}>
+            ← Retour
+          </button>
+
+          <h2 className="section-title">Interpellations</h2>
+
+          <div className="results-list">
+            {annees.map((annee) => {
+              const fichesAnnee = interpellations.filter(
+                (item) => getInterpellationYear(item) === annee
+              );
+              const stats = statsInfractions(fichesAnnee);
+
+              return (
+                <div
+                  className="person-card"
+                  key={annee}
+                  onClick={() => setSelectedInterpellationYear(annee)}
+                >
+                  <div className="avatar">📅</div>
+
+                  <div className="person-info">
+                    <div className="person-name">{annee}</div>
+                    <div className="important-amount">
+                      Total interpellés : {totalInterpelles(fichesAnnee)}
+                    </div>
+                    {stats.length === 0 && <div>Aucune infraction enregistrée.</div>}
+                    {stats.map(([infraction, total]) => (
+                      <div key={infraction}>
+                        {infraction} : {total}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedInterpellationMonth === null) {
+      return (
+        <div className="home-page">
+          <button
+            className="back-btn"
+            onClick={() => setSelectedInterpellationYear(null)}
+          >
+            ← Retour
+          </button>
+
+          <h2 className="section-title">Interpellations {selectedInterpellationYear}</h2>
+
+          <div className="admin-card">
+            <h3>Décompte annuel</h3>
+            <p>Total interpellés : {totalInterpelles(interpellationsAnnee)}</p>
+            {statsInfractions(interpellationsAnnee).map(([infraction, total]) => (
+              <p key={infraction}>
+                {infraction} : {total}
+              </p>
+            ))}
+          </div>
+
+          <div className="results-list">
+            {MOIS_FR.map((mois, index) => {
+              const fichesMois = interpellationsAnnee.filter(
+                (item) => getInterpellationMonth(item) === index
+              );
+
+              return (
+                <div
+                  className="person-card"
+                  key={mois}
+                  onClick={() => {
+                    setSelectedInterpellationMonth(index);
+                    setEditingInterpellationId(null);
+                    setInterpellationDate(
+                      `${selectedInterpellationYear}-${String(index + 1).padStart(2, "0")}-01`
+                    );
+                    setInterpellationType("initiative");
+                    setInterpellationAuteurNom("");
+                    setInterpellationAuteurPrenom("");
+                    setInterpellationInfractions("");
+                    setInterpellationNombre("1");
+                  }}
+                >
+                  <div className="avatar">🗓️</div>
+
+                  <div className="person-info">
+                    <div className="person-name">{mois}</div>
+                    <div>Nombre de fiches : {fichesMois.length}</div>
+                    <div className="important-amount">
+                      Interpellés : {totalInterpelles(fichesMois)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="home-page">
+        <button
+          className="back-btn"
+          onClick={() => {
+            setSelectedInterpellationMonth(null);
+            resetInterpellationForm();
+          }}
+        >
+          ← Retour
+        </button>
+
+        <h2 className="section-title">
+          {MOIS_FR[selectedInterpellationMonth]} {selectedInterpellationYear}
+        </h2>
+
+        <div className="admin-card">
+          <h3>Décompte du mois</h3>
+          <p>Total interpellés : {totalInterpelles(interpellationsMois)}</p>
+          {statsInfractions(interpellationsMois).map(([infraction, total]) => (
+            <p key={infraction}>
+              {infraction} : {total}
+            </p>
+          ))}
+        </div>
+
+        <div className="admin-card">
+          <h3>{editingInterpellationId ? "Modifier une fiche" : "Ajouter une fiche"}</h3>
+
+          <input
+            type="date"
+            value={interpellationDate}
+            onChange={(e) => setInterpellationDate(e.target.value)}
+          />
+
+          <select
+            className="role-select"
+            value={interpellationType}
+            onChange={(e) => setInterpellationType(e.target.value)}
+          >
+            <option value="initiative">Initiative</option>
+            <option value="requisition">Réquisition</option>
+          </select>
+
+          <input
+            type="text"
+            placeholder="Nom de l'auteur"
+            value={interpellationAuteurNom}
+            onChange={(e) => setInterpellationAuteurNom(e.target.value)}
+          />
+
+          <input
+            type="text"
+            placeholder="Prénom de l'auteur"
+            value={interpellationAuteurPrenom}
+            onChange={(e) => setInterpellationAuteurPrenom(e.target.value)}
+          />
+
+          <textarea
+            placeholder="Infractions"
+            value={interpellationInfractions}
+            onChange={(e) => setInterpellationInfractions(e.target.value)}
+          />
+
+          <input
+            type="number"
+            min="1"
+            placeholder="Nombre d'interpellés"
+            value={interpellationNombre}
+            onChange={(e) => setInterpellationNombre(e.target.value)}
+          />
+
+          <button className="admin-main-btn" onClick={enregistrerInterpellation}>
+            {editingInterpellationId ? "Enregistrer modification" : "Ajouter"}
+          </button>
+
+          {editingInterpellationId && (
+            <button className="cancel-btn" onClick={resetInterpellationForm}>
+              Annuler modification
+            </button>
+          )}
+        </div>
+
+        <div className="admin-card">
+          <h3>Fiches du mois</h3>
+
+          {interpellationsMois.length === 0 && <p>Aucune fiche enregistrée.</p>}
+
+          {interpellationsMois.map((item) => (
+            <div className="user-line" key={item.id}>
+              <div>
+                <strong>
+                  {formatDateFr(item.date_interpellation)} — {item.type === "requisition" ? "Réquisition" : "Initiative"}
+                </strong>
+                <br />
+                Auteur : {item.auteur_nom} {item.auteur_prenom}
+                <br />
+                Infractions : {item.infractions}
+                <br />
+                Nombre d'interpellés : {item.nombre_interpelles}
+              </div>
+
+              <div className="user-buttons">
+                <button
+                  className="edit-btn"
+                  onClick={() => modifierInterpellation(item)}
+                >
+                  Modifier
+                </button>
+
+                <button
+                  className="delete-btn"
+                  onClick={() => supprimerInterpellation(item.id)}
+                >
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (page === "caisseCafe") {
     const peutGererCaisseCafe =
       currentUser?.role === "LE TÔLIER" ||
@@ -3616,6 +4046,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("caisseCafe")}>
           ☕
           <span>Caisse café</span>
+        </div>
+
+        <div className="menu-card" onClick={() => setPage("interpellations")}>
+          🚓
+          <span>Interpellations</span>
         </div>
 
         {currentUser &&
