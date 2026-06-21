@@ -114,6 +114,10 @@ function normaliserTexteIdentite(value) {
   return (value || "").trim().toLowerCase();
 }
 
+function normaliserPlaque(value) {
+  return (value || "").trim().toLowerCase();
+}
+
 function uniquePhotos(values) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -324,6 +328,7 @@ const chargerUtilisateurs = async () => {
   const [vehiculeModele, setVehiculeModele] = useState("");
   const [vehiculeCouleur, setVehiculeCouleur] = useState("");
   const [vehiculePlaque, setVehiculePlaque] = useState("");
+  const [duplicateVehiculeWarningKey, setDuplicateVehiculeWarningKey] = useState("");
   const [vehiculeSecteur, setVehiculeSecteur] = useState("");
   const [vehiculeFaits, setVehiculeFaits] = useState("");
   const [vehiculeFuite, setVehiculeFuite] = useState("");
@@ -1588,15 +1593,15 @@ if (profilError || !profil) {
           </div>
         ))}
 
-        <label className="form-label" htmlFor="nouveau-fait-date">
-          Date du fait
-        </label>
-        <input
-          id="nouveau-fait-date"
-          type="date"
-          value={nouveauFaitDate}
-          onChange={(e) => setNouveauFaitDate(e.target.value)}
-        />
+        <div className="date-field">
+          <span>Date du fait</span>
+          <input
+            id="nouveau-fait-date"
+            type="date"
+            value={nouveauFaitDate}
+            onChange={(e) => setNouveauFaitDate(e.target.value)}
+          />
+        </div>
 
         <textarea
           placeholder="Nouveau fait"
@@ -1861,6 +1866,7 @@ setNouvelleIdentiteTelephone("");
     setVehiculeModele("");
     setVehiculeCouleur("");
     setVehiculePlaque("");
+    setDuplicateVehiculeWarningKey("");
     setVehiculeSecteur("");
     setVehiculeFaits("");
     setVehiculeFuite("");
@@ -1870,6 +1876,34 @@ setNouvelleIdentiteTelephone("");
 setVehiculePhotos([]);
 setVehiculePhotoPrincipaleIndex(0);
     resetNouvelleIdentiteDepuisVehicule();
+  };
+
+  const trouverDoublonVehicule = () => {
+    const plaqueClean = normaliserPlaque(vehiculePlaque);
+
+    if (editingVehiculeId || !plaqueClean) return null;
+
+    const vehiculeExistant = vehicules.find((item) => {
+      return normaliserPlaque(item.plaque) === plaqueClean;
+    });
+
+    if (!vehiculeExistant) return null;
+
+    return {
+      key: plaqueClean,
+      vehicule: vehiculeExistant,
+    };
+  };
+
+  const alerterDoublonVehicule = () => {
+    const doublon = trouverDoublonVehicule();
+
+    if (!doublon || duplicateVehiculeWarningKey === doublon.key) return;
+
+    alert(
+      "Attention immatriculation existante, vérifiez s'il ne s'agit pas du même véhicule ou d'une erreur de saisie."
+    );
+    setDuplicateVehiculeWarningKey(doublon.key);
   };
 
   const changerIdentiteLieeVehicule = (value) => {
@@ -1884,6 +1918,17 @@ setVehiculePhotoPrincipaleIndex(0);
   if (!vehiculePlaque && !vehiculeMarque && !vehiculeModele) {
     alert("Renseigne au moins une plaque, une marque ou un modèle.");
     return;
+  }
+
+  const doublonVehicule = trouverDoublonVehicule();
+
+  if (doublonVehicule && duplicateVehiculeWarningKey !== doublonVehicule.key) {
+    const continuer = window.confirm(
+      "Attention immatriculation existante, vérifiez s'il ne s'agit pas du même véhicule ou d'une erreur de saisie."
+    );
+
+    if (!continuer) return;
+    setDuplicateVehiculeWarningKey(doublonVehicule.key);
   }
 
   let finalIndividuId = vehiculeIndividuId;
@@ -3225,12 +3270,14 @@ if (page === "identityDetails" && selectedIdentity) {
             placeholder="Immatriculation"
             value={vehiculePlaque}
             onChange={(e) => setVehiculePlaque(e.target.value)}
+            onBlur={alerterDoublonVehicule}
           />
 
           <input
             type="text"
             placeholder="Secteur concerné"
             value={vehiculeSecteur}
+            onFocus={alerterDoublonVehicule}
             onChange={(e) => setVehiculeSecteur(e.target.value)}
           />
 
@@ -3289,15 +3336,15 @@ if (page === "identityDetails" && selectedIdentity) {
                 onChange={(e) => setNouvelleIdentiteAlias(e.target.value)}
               />
 
-              <label className="form-label" htmlFor="nouvelle-identite-naissance">
-                Date de naissance
-              </label>
-              <input
-                id="nouvelle-identite-naissance"
-                type="date"
-                value={nouvelleIdentiteNaissance}
-                onChange={(e) => setNouvelleIdentiteNaissance(e.target.value)}
-              />
+              <div className="date-field">
+                <span>Date de naissance</span>
+                <input
+                  id="nouvelle-identite-naissance"
+                  type="date"
+                  value={nouvelleIdentiteNaissance}
+                  onChange={(e) => setNouvelleIdentiteNaissance(e.target.value)}
+                />
+              </div>
 <input
   type="text"
   placeholder="Lieu de naissance"
@@ -3594,15 +3641,15 @@ if (page === "identityDetails" && selectedIdentity) {
             onChange={(e) => setAlias(e.target.value)}
           />
 
-          <label className="form-label" htmlFor="identite-naissance">
-            Date de naissance
-          </label>
-          <input
-            id="identite-naissance"
-            type="date"
-            value={naissance}
-            onChange={(e) => setNaissance(e.target.value)}
-          />
+          <div className="date-field">
+            <span>Date de naissance</span>
+            <input
+              id="identite-naissance"
+              type="date"
+              value={naissance}
+              onChange={(e) => setNaissance(e.target.value)}
+            />
+          </div>
 <input
   type="text"
   placeholder="Lieu de naissance"
@@ -4160,15 +4207,15 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="admin-card">
           <h3>{editingInterpellationId ? "Modifier une fiche" : "Ajouter une fiche"}</h3>
 
-          <label className="form-label" htmlFor="interpellation-date">
-            Date
-          </label>
-          <input
-            id="interpellation-date"
-            type="date"
-            value={interpellationDate}
-            onChange={(e) => setInterpellationDate(e.target.value)}
-          />
+          <div className="date-field">
+            <span>Date</span>
+            <input
+              id="interpellation-date"
+              type="date"
+              value={interpellationDate}
+              onChange={(e) => setInterpellationDate(e.target.value)}
+            />
+          </div>
 
           <select
             className="role-select"
