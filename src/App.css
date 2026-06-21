@@ -506,7 +506,7 @@ button {
 }
 
 .p4-rest {
-  background: #3b334d;
+  background: #f28c78;
 }
 
 .p4-badge {
@@ -586,7 +586,7 @@ button {
 }
 
 .p4-day.rest {
-  background: rgba(65, 55, 90, 0.36);
+  background: rgba(242, 140, 120, 0.32);
 }
 
 .p4-day.today {
@@ -798,6 +798,10 @@ button {
   .p4-grid.year {
     grid-template-columns: repeat(7, minmax(118px, 1fr));
     padding-bottom: 8px;
+  }
+
+  .p4-grid.week {
+    grid-template-columns: 1fr;
   }
 
   .p4-day {

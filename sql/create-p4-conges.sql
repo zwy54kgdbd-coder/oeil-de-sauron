@@ -29,7 +29,8 @@ with check (true);
 
 drop policy if exists "p4_conges_update_authenticated" on public.p4_conges;
 drop policy if exists "p4_conges_update_admin" on public.p4_conges;
-create policy "p4_conges_update_admin"
+drop policy if exists "p4_conges_update_own_pending" on public.p4_conges;
+create policy "p4_conges_update_own_pending"
 on public.p4_conges
 for update
 to authenticated
@@ -46,6 +47,21 @@ using (
         )
       )
   )
+  or (
+    statut in ('demande', 'previsionnel')
+    and exists (
+      select 1
+      from public.users u
+      where u.username = p4_conges.created_by
+        and (
+          lower(coalesce(u.auth_email, '')) = lower(auth.jwt() ->> 'email')
+          or (
+            u.username = 'tolier'
+            and lower(auth.jwt() ->> 'email') = 'tayeb.berkouk.tbt@gmail.com'
+          )
+        )
+    )
+  )
 )
 with check (
   exists (
@@ -59,6 +75,21 @@ with check (
           and lower(auth.jwt() ->> 'email') = 'tayeb.berkouk.tbt@gmail.com'
         )
       )
+  )
+  or (
+    statut in ('demande', 'previsionnel')
+    and exists (
+      select 1
+      from public.users u
+      where u.username = p4_conges.created_by
+        and (
+          lower(coalesce(u.auth_email, '')) = lower(auth.jwt() ->> 'email')
+          or (
+            u.username = 'tolier'
+            and lower(auth.jwt() ->> 'email') = 'tayeb.berkouk.tbt@gmail.com'
+          )
+        )
+    )
   )
 );
 

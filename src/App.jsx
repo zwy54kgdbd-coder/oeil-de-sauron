@@ -34,6 +34,8 @@ const TYPES_CONGES_P4 = [
   "RTT",
   "CET",
   "ASA",
+  "STAGE",
+  "OPTION",
 ];
 const P4_CYCLE_START = "2026-01-05";
 const createP4Period = () => ({
@@ -131,6 +133,31 @@ function getIdentite(identites, individuId) {
 
 function normaliserTexteIdentite(value) {
   return (value || "").trim().toLowerCase();
+}
+
+function normaliserP4(value) {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function getP4CollegueUtilisateur(user) {
+  const prenom = normaliserP4(user?.prenom || user?.username || "");
+
+  return (
+    COLLEGUES_CAISSE_CAFE.find((collegue) => normaliserP4(collegue) === prenom) ||
+    ""
+  );
+}
+
+function getP4CollegueLabel(value) {
+  return normaliserP4(value) === "benjoin" ? "Benjamin" : value;
+}
+
+function getP4TypeCourt(type) {
+  return type === "CA en cours" ? "CA" : type;
 }
 
 function normaliserPlaque(value) {
@@ -1244,6 +1271,11 @@ const chargerP4Conges = async () => {
   const peutGererP4 =
     currentUser?.role === "LE TÔLIER" ||
     currentUser?.role === "ADMINISTRATEUR";
+  const collegueP4Utilisateur = getP4CollegueUtilisateur(currentUser);
+  const peutModifierP4Item = (item) =>
+    peutGererP4 ||
+    (item.created_by === currentUser?.username &&
+      ["demande", "previsionnel"].includes(item.statut));
 
   const resetP4Form = () => {
     setEditingP4Id(null);
@@ -1283,7 +1315,9 @@ const chargerP4Conges = async () => {
       (periode) => periode.date_debut || periode.date_fin || periode.commentaire
     );
 
-    if (!p4Collegue || periodesValides.length === 0) {
+    const collegueFinal = peutGererP4 ? p4Collegue : collegueP4Utilisateur;
+
+    if (!collegueFinal || periodesValides.length === 0) {
       alert("Renseigne le collègue et au moins une période.");
       return;
     }
@@ -1308,7 +1342,7 @@ const chargerP4Conges = async () => {
 
     const statut = editingP4Id && peutGererP4 ? p4EditionStatut : p4FormMode;
     const payloads = periodesValides.map((periode) => ({
-      collegue: p4Collegue,
+      collegue: collegueFinal,
       date_debut: periode.date_debut,
       date_fin: periode.date_fin,
       type: periode.type,
@@ -1329,7 +1363,7 @@ const chargerP4Conges = async () => {
 
     await chargerP4Conges();
     ajouterHistorique(
-      `${editingP4Id ? "Modification" : "Ajout"} P4 ${statut} : ${p4Collegue} — ${payloads.length} période(s)`,
+      `${editingP4Id ? "Modification" : "Ajout"} P4 ${statut} : ${collegueFinal} — ${payloads.length} période(s)`,
       "p4_conges",
       editingP4Id
     );
@@ -1337,8 +1371,8 @@ const chargerP4Conges = async () => {
   };
 
   const modifierP4Conge = (item) => {
-    if (!peutGererP4) {
-      alert("Seuls le Tôlier et les administrateurs peuvent modifier le P4.");
+    if (!peutModifierP4Item(item)) {
+      alert("Tu peux modifier uniquement tes demandes en attente.");
       return;
     }
 
@@ -4645,12 +4679,18 @@ if (page === "identityDetails" && selectedIdentity) {
         : p4Vue === "semaine"
           ? [{ monthIndex: selectedMonth, days: getWeekDays(selectedDate) }]
           : [{ monthIndex: selectedMonth, days: getMonthDays(selectedYear, selectedMonth) }];
-    const p4DemandesUrgentes = p4Conges.filter((item) =>
+    const p4ListeVisible = peutGererP4
+      ? p4Conges
+      : p4Conges.filter((item) => item.created_by === currentUser?.username);
+    const p4DemandesUrgentes = p4ListeVisible.filter((item) =>
       ["demande", "previsionnel"].includes(item.statut)
     );
-    const congesDuJour = (date) =>
-      p4Conges.filter((item) =>
-        isDateInRange(date, item.date_debut, item.date_fin)
+    const congesDuJour = (date, cycle) =>
+      p4Conges.filter(
+        (item) =>
+          item.statut === "valide" &&
+          cycle.isWorking &&
+          isDateInRange(date, item.date_debut, item.date_fin)
       );
     const statutLabel = {
       demande: "Demande",
@@ -4715,10 +4755,10 @@ if (page === "identityDetails" && selectedIdentity) {
             <div className="p4-month" key={`${p4Vue}-${group.monthIndex}`}>
               {p4Vue === "annee" && <h3>{MOIS_FR[group.monthIndex]}</h3>}
 
-              <div className={`p4-grid ${p4Vue === "annee" ? "year" : ""}`}>
+              <div className={`p4-grid ${p4Vue === "annee" ? "year" : ""} ${p4Vue === "semaine" ? "week" : ""}`}>
                 {group.days.map((day) => {
                   const cycle = getP4CycleInfo(day);
-                  const lignesJour = congesDuJour(day);
+                  const lignesJour = congesDuJour(day, cycle);
                   const isToday = isSameDay(day, new Date());
 
                   return (
@@ -4739,8 +4779,8 @@ if (page === "identityDetails" && selectedIdentity) {
                           className={`p4-entry ${item.statut}`}
                           key={`${item.id}-${toDateInputValue(day)}`}
                         >
-                          <strong>{item.collegue}</strong>
-                          <span>{item.type}</span>
+                          <strong>{getP4CollegueLabel(item.collegue)}</strong>
+                          <span>{getP4TypeCourt(item.type)}</span>
                         </div>
                       ))}
                     </div>
@@ -4781,8 +4821,11 @@ if (page === "identityDetails" && selectedIdentity) {
             className="role-select"
             value={p4Collegue}
             onChange={(e) => setP4Collegue(e.target.value)}
+            disabled={!peutGererP4}
           >
-            <option value="">Collègue</option>
+            <option value="">
+              {peutGererP4 ? "Collègue" : collegueP4Utilisateur || "Compte non reconnu"}
+            </option>
             {COLLEGUES_CAISSE_CAFE.map((collegue) => (
               <option key={collegue} value={collegue}>
                 {collegue}
@@ -4882,6 +4925,12 @@ if (page === "identityDetails" && selectedIdentity) {
               Annuler modification
             </button>
           )}
+
+          {!editingP4Id && (
+            <button className="cancel-btn" onClick={resetP4Form}>
+              Annuler la demande
+            </button>
+          )}
         </div>
 
         <div className="admin-card">
@@ -4893,7 +4942,7 @@ if (page === "identityDetails" && selectedIdentity) {
             <div className={`user-line p4-request ${item.statut}`} key={item.id}>
               <div>
                 <strong>
-                  {item.collegue} — {item.type}
+                  {getP4CollegueLabel(item.collegue)} — {getP4TypeCourt(item.type)}
                 </strong>
                 <br />
                 {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
@@ -4907,23 +4956,27 @@ if (page === "identityDetails" && selectedIdentity) {
                 )}
               </div>
 
-              {peutGererP4 && (
+              {peutModifierP4Item(item) && (
                 <div className="user-buttons">
                   <button className="edit-btn" onClick={() => modifierP4Conge(item)}>
                     Modifier
                   </button>
-                  <button
-                    className="edit-btn"
-                    onClick={() => changerStatutP4Conge(item, "valide")}
-                  >
-                    Valider
-                  </button>
-                  <button
-                    className="delete-btn"
-                    onClick={() => changerStatutP4Conge(item, "refuse")}
-                  >
-                    Refuser
-                  </button>
+                  {peutGererP4 && (
+                    <>
+                      <button
+                        className="edit-btn"
+                        onClick={() => changerStatutP4Conge(item, "valide")}
+                      >
+                        Valider
+                      </button>
+                      <button
+                        className="delete-btn"
+                        onClick={() => changerStatutP4Conge(item, "refuse")}
+                      >
+                        Refuser
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -4933,13 +4986,13 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="admin-card">
           <h3>P4 enregistré</h3>
 
-          {p4Conges.length === 0 && <p>Aucune ligne P4 enregistrée.</p>}
+          {p4ListeVisible.length === 0 && <p>Aucune ligne P4 enregistrée.</p>}
 
-          {p4Conges.map((item) => (
+          {p4ListeVisible.map((item) => (
             <div className={`user-line p4-request ${item.statut}`} key={item.id}>
               <div>
                 <strong>
-                  {item.collegue} — {item.type}
+                  {getP4CollegueLabel(item.collegue)} — {getP4TypeCourt(item.type)}
                 </strong>
                 <br />
                 {formatDateFr(item.date_debut)} au {formatDateFr(item.date_fin)}
@@ -4947,14 +5000,16 @@ if (page === "identityDetails" && selectedIdentity) {
                 Statut : {statutLabel[item.statut] || item.statut}
               </div>
 
-              {peutGererP4 && (
+              {peutModifierP4Item(item) && (
                 <div className="user-buttons">
                   <button className="edit-btn" onClick={() => modifierP4Conge(item)}>
                     Modifier
                   </button>
-                  <button className="delete-btn" onClick={() => supprimerP4Conge(item)}>
-                    Supprimer
-                  </button>
+                  {peutGererP4 && (
+                    <button className="delete-btn" onClick={() => supprimerP4Conge(item)}>
+                      Supprimer
+                    </button>
+                  )}
                 </div>
               )}
             </div>
