@@ -556,6 +556,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [editingP4Id, setEditingP4Id] = useState(null);
   const [editingP4Item, setEditingP4Item] = useState(null);
   const [vieGroupeItems, setVieGroupeItems] = useState([]);
+  const [vieGroupeOnglet, setVieGroupeOnglet] = useState("photos");
   const [vieGroupeTexte, setVieGroupeTexte] = useState("");
   const [editingVieGroupeId, setEditingVieGroupeId] = useState(null);
     useEffect(() => {
@@ -5554,6 +5555,22 @@ if (page === "identityDetails" && selectedIdentity) {
 
         <h2 className="section-title">Vie de groupe</h2>
 
+        <div className="sector-switch">
+          <button
+            className={vieGroupeOnglet === "photos" ? "active-sector" : ""}
+            onClick={() => setVieGroupeOnglet("photos")}
+          >
+            Souvenirs photos
+          </button>
+          <button
+            className={vieGroupeOnglet === "commentaires" ? "active-sector" : ""}
+            onClick={() => setVieGroupeOnglet("commentaires")}
+          >
+            Commentaires
+          </button>
+        </div>
+
+        {vieGroupeOnglet === "photos" && (
         <div className="admin-card">
           <h3>Souvenirs photos</h3>
 
@@ -5604,9 +5621,11 @@ if (page === "identityDetails" && selectedIdentity) {
             ))}
           </div>
         </div>
+        )}
 
+        {vieGroupeOnglet === "commentaires" && (
         <div className="admin-card">
-          <h3>Cahier de doléance</h3>
+          <h3>Commentaires</h3>
 
           <textarea
             placeholder="Anecdote, souvenir, message..."
@@ -5651,6 +5670,7 @@ if (page === "identityDetails" && selectedIdentity) {
             </div>
           ))}
         </div>
+        )}
       </div>
     );
   }
