@@ -8966,14 +8966,6 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
       </div>
 
-      <button
-        className="home-wide-action home-global-search"
-        onClick={() => setPage("rechercheGlobale")}
-      >
-        <span>Recherche globale</span>
-        <strong>Nom, photo, plaque, secteur, camp, numéro, fait...</strong>
-      </button>
-
       {peutVoirAlertesAccueil && (
         <button
           className={`home-wide-action home-alerts ${notificationsATraiter.length === 0 ? "empty" : ""}`}
@@ -8987,6 +8979,14 @@ if (page === "identityDetails" && selectedIdentity) {
           </strong>
         </button>
       )}
+
+      <button
+        className="home-wide-action home-global-search"
+        onClick={() => setPage("rechercheGlobale")}
+      >
+        <span>Recherche globale</span>
+        <strong>Nom, photo, plaque, secteur, camp, numéro, fait...</strong>
+      </button>
 
       <div className="menu-grid">
         <div className="menu-card" onClick={() => setPage("add")}>
