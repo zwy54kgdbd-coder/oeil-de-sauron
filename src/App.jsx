@@ -6431,6 +6431,32 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  const peutVoirAlertesAccueil =
+    currentUser?.role === "LE TÔLIER" ||
+    currentUser?.role === "ADMINISTRATEUR";
+  const demandesP4EnAttente = p4Conges.filter(
+    (item) => getP4Nature(item) === "demande" && item.statut === "demande"
+  );
+  const previsionnelsP4EnAttente = p4Conges.filter(
+    (item) => getP4Nature(item) === "previsionnel" && item.statut === "previsionnel"
+  );
+  const alertesAccueil = [
+    {
+      key: "p4-demandes",
+      titre: "Demandes de congé à valider",
+      detail: `${demandesP4EnAttente.length} demande(s) en attente`,
+      count: demandesP4EnAttente.length,
+      page: "p4",
+    },
+    {
+      key: "p4-previsionnels",
+      titre: "Prévisionnels à contrôler",
+      detail: `${previsionnelsP4EnAttente.length} prévisionnel(s) en attente`,
+      count: previsionnelsP4EnAttente.length,
+      page: "p4",
+    },
+  ].filter((alerte) => alerte.count > 0);
+
   return (
     <div className="home-page">
       <div className="top-bar">
@@ -6442,6 +6468,39 @@ if (page === "identityDetails" && selectedIdentity) {
           Déconnexion
         </button>
       </div>
+
+      {peutVoirAlertesAccueil && (
+        <div className={`home-alerts ${alertesAccueil.length === 0 ? "empty" : ""}`}>
+          <div className="home-alerts-header">
+            <strong>À traiter</strong>
+            <span>
+              {alertesAccueil.length === 0
+                ? "Aucune alerte importante"
+                : `${alertesAccueil.reduce((total, item) => total + item.count, 0)} élément(s)`}
+            </span>
+          </div>
+
+          {alertesAccueil.length === 0 ? (
+            <p>Rien en attente pour le moment.</p>
+          ) : (
+            <div className="home-alerts-list">
+              {alertesAccueil.map((alerte) => (
+                <button
+                  className="home-alert-item"
+                  key={alerte.key}
+                  onClick={() => setPage(alerte.page)}
+                >
+                  <span className="home-alert-count">{alerte.count}</span>
+                  <span>
+                    <strong>{alerte.titre}</strong>
+                    <small>{alerte.detail}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="menu-grid">
         <div className="menu-card" onClick={() => setPage("search")}>
