@@ -1950,13 +1950,6 @@ const chargerNumerosUtiles = async () => {
       selectedVieGroupeModule === "ficheIndividuelle"
         ? getFicheIndividuelleData()
         : null;
-    const afficherFormulaireDossier =
-      peutAjouterDossier &&
-      (
-        selectedVieGroupeModule !== "ficheIndividuelle" ||
-        dossiers.length === 0 ||
-        Boolean(editingVieGroupeDossierId)
-      );
     const optionSelectionnee = vieGroupeOptions.find(
       (option) => String(option.id) === String(vieGroupeDossierForm.element_id)
     );
@@ -6881,6 +6874,13 @@ if (page === "identityDetails" && selectedIdentity) {
       selectedVieGroupeModule === "ficheIndividuelle"
         ? getFicheIndividuelleData()
         : null;
+    const afficherFormulaireDossier =
+      peutAjouterDossier &&
+      (
+        selectedVieGroupeModule !== "ficheIndividuelle" ||
+        dossiers.length === 0 ||
+        Boolean(editingVieGroupeDossierId)
+      );
 
     if (!module) {
       setPage("vieGroupe");
