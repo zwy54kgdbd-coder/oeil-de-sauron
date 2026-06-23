@@ -495,12 +495,13 @@ button {
   margin-bottom: 8px;
 }
 
-.vie-groupe-note p {
+.vie-groupe-commentaire {
   color: #fff;
-  font-size: 19px;
+  font-size: 22px;
+  font-weight: 600;
   line-height: 1.45;
   white-space: pre-wrap;
-  margin-bottom: 0;
+  margin-top: 8px;
 }
 
 .p4-alert-card {

@@ -188,6 +188,10 @@ function removeVieGroupeTitre(payload) {
   return rest;
 }
 
+function getVieGroupeTitre(item) {
+  return item?.titre || (item?.type === "photo" ? item?.contenu : "") || "";
+}
+
 function normaliserPlaque(value) {
   return (value || "")
     .trim()
@@ -1144,7 +1148,7 @@ const chargerVieGroupe = async () => {
     }
 
     setEditingVieGroupePhotoId(item.id);
-    setVieGroupePhotoTitre(item.titre || "");
+    setVieGroupePhotoTitre(getVieGroupeTitre(item));
   };
 
   const enregistrerTitreVieGroupePhoto = async () => {
@@ -1162,7 +1166,10 @@ const chargerVieGroupe = async () => {
     if (isVieGroupeTitreColumnMissing(result.error)) {
       result = await supabase
         .from("vie_groupe")
-        .update(removeVieGroupeTitre(payload))
+        .update({
+          contenu: payload.titre,
+          updated_by: payload.updated_by,
+        })
         .eq("id", editingVieGroupePhotoId);
     }
 
@@ -1218,7 +1225,12 @@ const chargerVieGroupe = async () => {
       if (isVieGroupeTitreColumnMissing(result.error)) {
         result = await supabase
           .from("vie_groupe")
-          .insert([removeVieGroupeTitre(payload)]);
+          .insert([
+            {
+              ...removeVieGroupeTitre(payload),
+              contenu: payload.titre,
+            },
+          ]);
       }
 
       if (result.error) {
@@ -5676,7 +5688,9 @@ if (page === "identityDetails" && selectedIdentity) {
                   alt="souvenir"
                   onClick={() => setPhotoZoom(item.photo_url)}
                 />
-                {item.titre && <div className="vie-groupe-photo-title">{item.titre}</div>}
+                {getVieGroupeTitre(item) && (
+                  <div className="vie-groupe-photo-title">{getVieGroupeTitre(item)}</div>
+                )}
                 <div className="vie-groupe-meta">
                   Ajouté par : {item.redacteur || item.created_by || "Inconnu"}
                   <br />
@@ -5743,7 +5757,7 @@ if (page === "identityDetails" && selectedIdentity) {
                   <br />
                   {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
                 </div>
-                <p>{item.contenu}</p>
+                <div className="vie-groupe-commentaire">{item.contenu}</div>
               </div>
 
               <div className="user-buttons">
