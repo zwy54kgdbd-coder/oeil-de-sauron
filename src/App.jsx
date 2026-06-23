@@ -2648,7 +2648,7 @@ const chargerCaisseCafeRappels = async () => {
     }
 
     const confirmation = window.confirm(
-      `Remettre à zéro les consommations de ${collegue} ? Son solde positif sera conservé.`
+      `Remettre à zéro ${collegue}, conserver son solde restant réel, puis lui ajouter un café à 2 € ?`
     );
 
     if (!confirmation) return;
@@ -2667,11 +2667,29 @@ const chargerCaisseCafeRappels = async () => {
       return;
     }
 
+    const { error: insertError } = await supabase.from("caisse_cafe").insert([
+      {
+        collegue,
+        produit: "cafe",
+        produit_label: "Café",
+        quantite: 1,
+        prix_unitaire: 2,
+        total: 2,
+        created_by: currentUser?.username || "Inconnu",
+        reset_id: String(Date.now()),
+      },
+    ]);
+
+    if (insertError) {
+      alert("Erreur ajout café après remise à zéro : " + insertError.message);
+      return;
+    }
+
     await chargerCaisseCafe();
     await chargerCaisseCafeSoldes();
     await desactiverRappelCaisseCafe(collegue);
     ajouterHistorique(
-      `Remise à zéro caisse café individuelle : ${collegue}`,
+      `Remise à zéro caisse café individuelle : ${collegue} avec café à 2 €`,
       "caisse_cafe"
     );
   };
@@ -6274,10 +6292,6 @@ if (page === "identityDetails" && selectedIdentity) {
 
             <button className="admin-main-btn" onClick={ajouterProduitCaisseCafe}>
               Ajouter produit
-            </button>
-
-            <button className="delete-btn" onClick={resetCaisseCafe}>
-              Remise à zéro + café 2 €
             </button>
           </div>
         )}
