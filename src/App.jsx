@@ -196,11 +196,34 @@ function normaliserP4(value) {
     .toLowerCase();
 }
 
-function getP4CollegueUtilisateur(user) {
+function getCollegueDepuisUser(user) {
+  return (user?.prenom || user?.username || "").trim();
+}
+
+function getListeCollegues(users) {
+  const collegues = [...COLLEGUES_CAISSE_CAFE];
+
+  (users || []).forEach((user) => {
+    const collegue = getP4CollegueLabel(getCollegueDepuisUser(user));
+
+    if (
+      collegue &&
+      !collegues.some((item) => normaliserP4(item) === normaliserP4(collegue))
+    ) {
+      collegues.push(collegue);
+    }
+  });
+
+  return collegues.sort((a, b) =>
+    a.localeCompare(b, "fr", { sensitivity: "base" })
+  );
+}
+
+function getP4CollegueUtilisateur(user, collegues = COLLEGUES_CAISSE_CAFE) {
   const prenom = normaliserP4(user?.prenom || user?.username || "");
 
   return (
-    COLLEGUES_CAISSE_CAFE.find((collegue) => normaliserP4(collegue) === prenom) ||
+    collegues.find((collegue) => normaliserP4(collegue) === prenom) ||
     ""
   );
 }
@@ -529,6 +552,9 @@ const chargerUtilisateurs = async () => {
   const [vehicules, setVehicules] = useState([]);
   const [faitsIdentites, setFaitsIdentites] = useState([]);
   const [historique, setHistorique] = useState([]);
+  const [historiqueSearch, setHistoriqueSearch] = useState("");
+  const [historiqueSelectedUser, setHistoriqueSelectedUser] = useState("");
+  const colleguesApplication = getListeCollegues(users);
 
   const [editingVehiculeId, setEditingVehiculeId] = useState(null);
   const [vehiculeMarque, setVehiculeMarque] = useState("");
@@ -596,7 +622,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [caisseCafeQuantite, setCaisseCafeQuantite] = useState("");
   const [caisseCafePrix, setCaisseCafePrix] = useState("");
   const [editingCaisseCafeId, setEditingCaisseCafeId] = useState(null);
-  const [soldeCafeCollegue, setSoldeCafeCollegue] = useState(COLLEGUES_CAISSE_CAFE[0]);
+  const [soldeCafeCollegue, setSoldeCafeCollegue] = useState("");
   const [soldeCafeMontant, setSoldeCafeMontant] = useState("");
   const [nouveauProduitCafeNom, setNouveauProduitCafeNom] = useState("");
   const [nouveauProduitCafePrix, setNouveauProduitCafePrix] = useState("");
@@ -1747,7 +1773,7 @@ const chargerVieGroupeDossiers = async () => {
   const peutGererP4 =
     currentUser?.role === "LE TÔLIER" ||
     currentUser?.role === "ADMINISTRATEUR";
-  const collegueP4Utilisateur = getP4CollegueUtilisateur(currentUser);
+  const collegueP4Utilisateur = getP4CollegueUtilisateur(currentUser, colleguesApplication);
   const peutModifierP4Item = (item) =>
     peutGererP4 ||
     (item.created_by === currentUser?.username &&
@@ -2050,7 +2076,7 @@ const chargerVieGroupeDossiers = async () => {
     }
 
     setEditingCaisseCafeId(item.id);
-    setCaisseCafeCollegue(item.collegue || COLLEGUES_CAISSE_CAFE[0]);
+    setCaisseCafeCollegue(item.collegue || colleguesApplication[0] || "");
     setCaisseCafeProduit(item.produit || "boisson_sans_alcool");
     setCaisseCafeQuantite(String(item.quantite || 1));
     setCaisseCafePrix(String(item.prix_unitaire || 1));
@@ -2235,7 +2261,7 @@ const chargerVieGroupeDossiers = async () => {
     if (!confirmation) return;
 
     const soldesOk = await enregistrerSoldesRestantsCaisseCafe(
-      COLLEGUES_CAISSE_CAFE
+      colleguesApplication
     );
 
     if (!soldesOk) return;
@@ -2251,7 +2277,7 @@ const chargerVieGroupeDossiers = async () => {
     }
 
     const resetId = String(Date.now());
-    const lignesCafe = COLLEGUES_CAISSE_CAFE.map((collegue) => ({
+    const lignesCafe = colleguesApplication.map((collegue) => ({
       collegue,
       produit: "cafe",
       produit_label: "Café",
@@ -3096,6 +3122,11 @@ const handleVehiculePhoto = async (e) => {
     }
 
     await chargerUtilisateurs();
+    await ajouterHistorique(
+      `Modification utilisateur : ${usernameClean} (${newRole})`,
+      "utilisateur",
+      usernameClean
+    );
     resetUserForm();
     alert("Utilisateur modifié.");
     return;
@@ -3123,6 +3154,11 @@ const handleVehiculePhoto = async (e) => {
   }
 
   await chargerUtilisateurs();
+  await ajouterHistorique(
+    `Création utilisateur : ${usernameClean} (${newRole})`,
+    "utilisateur",
+    usernameClean
+  );
   resetUserForm();
 
   alert("Utilisateur créé.");
@@ -4704,13 +4740,74 @@ if (page === "identityDetails" && selectedIdentity) {
   }
 
   if (page === "historique") {
+    const getHistoriqueUsername = (item) => item.username || item.utilisateur || "Inconnu";
+    const getHistoriqueUserLabel = (usernameValue) => {
+      const user = users.find(
+        (item) => (item.username || "").toLowerCase() === (usernameValue || "").toLowerCase()
+      );
+
+      if (!user) return usernameValue || "Inconnu";
+
+      return (
+        `${user.grade || ""} ${user.nom || ""} ${user.prenom || ""}`.trim() ||
+        user.username ||
+        "Inconnu"
+      );
+    };
+    const historiqueSearchClean = historiqueSearch.trim().toLowerCase();
+    const historiqueFiltre = historique.filter((item) => {
+      const usernameValue = getHistoriqueUsername(item);
+      const texte = [
+        item.action,
+        item.details,
+        item.type_objet,
+        item.objet_id,
+        usernameValue,
+        getHistoriqueUserLabel(usernameValue),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchSearch = !historiqueSearchClean || texte.includes(historiqueSearchClean);
+      const matchUser =
+        !historiqueSelectedUser || usernameValue === historiqueSelectedUser;
+
+      return matchSearch && matchUser;
+    });
+    const historiquePourListe = historiqueSearchClean ? historiqueFiltre : historique;
+    const historiqueParUser = historiquePourListe.reduce((acc, item) => {
+      const usernameValue = getHistoriqueUsername(item);
+      acc[usernameValue] = (acc[usernameValue] || 0) + 1;
+      return acc;
+    }, {});
+    const utilisateursHistorique = Object.entries(historiqueParUser).sort((a, b) =>
+      getHistoriqueUserLabel(a[0]).localeCompare(getHistoriqueUserLabel(b[0]), "fr", {
+        sensitivity: "base",
+      })
+    );
+
     return (
       <div className="home-page">
-        <button className="back-btn" onClick={() => setPage("admin")}>
+        <button
+          className="back-btn"
+          onClick={() => {
+            if (historiqueSelectedUser) {
+              setHistoriqueSelectedUser("");
+              return;
+            }
+
+            setPage("admin");
+          }}
+        >
           ← Retour
         </button>
 
-        <h2 className="section-title">Historique</h2>
+        <h2 className="section-title">
+          {historiqueSelectedUser
+            ? `Historique ${getHistoriqueUserLabel(historiqueSelectedUser)}`
+            : "Historique"}
+        </h2>
 
         {currentUser && currentUser.role === "LE TÔLIER" && (
           <button className="delete-btn" onClick={viderHistorique}>
@@ -4718,18 +4815,56 @@ if (page === "identityDetails" && selectedIdentity) {
           </button>
         )}
 
+        <div className="admin-card">
+          <input
+            type="text"
+            placeholder="Rechercher une action, un collègue, une fiche..."
+            value={historiqueSearch}
+            onChange={(e) => setHistoriqueSearch(e.target.value)}
+          />
+        </div>
+
+        {!historiqueSelectedUser && (
+          <div className="results-list">
+            {utilisateursHistorique.length === 0 && (
+              <div className="admin-card">Aucun historique.</div>
+            )}
+
+            {utilisateursHistorique.map(([usernameValue, count]) => (
+              <div
+                className="person-card"
+                key={usernameValue}
+                onClick={() => setHistoriqueSelectedUser(usernameValue)}
+              >
+                <div className="avatar">🕘</div>
+
+                <div className="person-info">
+                  <div className="person-name">
+                    {getHistoriqueUserLabel(usernameValue)}
+                  </div>
+                  <div>Identifiant : {usernameValue}</div>
+                  <div>Actions enregistrées : {count}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {historiqueSelectedUser && (
         <div className="results-list">
-          {historique.length === 0 && (
+          {historiqueFiltre.length === 0 && (
             <div className="admin-card">Aucun historique.</div>
           )}
 
-          {historique.map((item) => (
+          {historiqueFiltre.map((item) => (
             <div className="person-card" key={item.id}>
               <div className="avatar">🕘</div>
 
               <div className="person-info">
                 <div className="person-name">{item.action}</div>
-                <div>Utilisateur : {item.username || item.utilisateur || "Inconnu"}</div>
+                <div>
+                  Utilisateur : {getHistoriqueUserLabel(getHistoriqueUsername(item))}
+                </div>
                 <div>Date : {formatDateFr(item.created_at) || item.date}</div>
                 <div>Heure : {formatHeureFr(item.created_at) || item.heure}</div>
                 {item.type_objet && <div>Type : {item.type_objet}</div>}
@@ -4738,6 +4873,7 @@ if (page === "identityDetails" && selectedIdentity) {
             </div>
           ))}
         </div>
+        )}
       </div>
     );
   }
@@ -5451,7 +5587,7 @@ if (page === "identityDetails" && selectedIdentity) {
             <option value="">
               {peutGererP4 ? "Collègue" : collegueP4Utilisateur || "Compte non reconnu"}
             </option>
-            {COLLEGUES_CAISSE_CAFE.map((collegue) => (
+            {colleguesApplication.map((collegue) => (
               <option key={collegue} value={collegue}>
                 {collegue}
               </option>
@@ -5604,7 +5740,7 @@ if (page === "identityDetails" && selectedIdentity) {
     const peutGererCaisseCafe =
       currentUser?.role === "LE TÔLIER" ||
       currentUser?.role === "ADMINISTRATEUR";
-    const resumeCaisseCafe = COLLEGUES_CAISSE_CAFE.map((collegue) => {
+    const resumeCaisseCafe = colleguesApplication.map((collegue) => {
       const consommations = caisseCafe.filter((item) => item.collegue === collegue);
       const totalConsomme = consommations.reduce(
         (total, item) => total + Number(item.total || 0),
@@ -5653,7 +5789,7 @@ if (page === "identityDetails" && selectedIdentity) {
             onChange={(e) => setCaisseCafeCollegue(e.target.value)}
           >
             <option value="">Choisir un collègue</option>
-            {COLLEGUES_CAISSE_CAFE.map((collegue) => (
+            {colleguesApplication.map((collegue) => (
               <option key={collegue} value={collegue}>
                 {collegue}
               </option>
@@ -5750,7 +5886,7 @@ if (page === "identityDetails" && selectedIdentity) {
               value={soldeCafeCollegue}
               onChange={(e) => setSoldeCafeCollegue(e.target.value)}
             >
-              {COLLEGUES_CAISSE_CAFE.map((collegue) => (
+              {colleguesApplication.map((collegue) => (
                 <option key={collegue} value={collegue}>
                   {collegue}
                 </option>
@@ -5901,7 +6037,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
         <div className="admin-card">
           <h3>Collègues</h3>
-          {COLLEGUES_CAISSE_CAFE.map((collegue) => (
+          {colleguesApplication.map((collegue) => (
             <div
               className="user-line"
               key={collegue}
