@@ -554,6 +554,9 @@ const chargerUtilisateurs = async () => {
   const [historique, setHistorique] = useState([]);
   const [historiqueSearch, setHistoriqueSearch] = useState("");
   const [historiqueSelectedUser, setHistoriqueSelectedUser] = useState("");
+  const [notificationsMasquees, setNotificationsMasquees] = useState(() =>
+    safeParseArray(localStorage.getItem("notificationsMasquees"))
+  );
   const colleguesApplication = getListeCollegues(users);
 
   const [editingVehiculeId, setEditingVehiculeId] = useState(null);
@@ -1959,13 +1962,14 @@ const chargerVieGroupeDossiers = async () => {
     );
   };
 
-  const supprimerP4Conge = async (item) => {
+  const supprimerP4Conge = async (item, demanderConfirmation = true) => {
     if (!peutGererP4) {
       alert("Seuls le Tôlier et les administrateurs peuvent supprimer du P4.");
       return;
     }
 
-    const confirmation = window.confirm("Supprimer cette ligne P4 ?");
+    const confirmation =
+      !demanderConfirmation || window.confirm("Supprimer cette ligne P4 ?");
 
     if (!confirmation) return;
 
@@ -1985,6 +1989,27 @@ const chargerVieGroupeDossiers = async () => {
       "p4_conges",
       item.id
     );
+  };
+
+  const masquerNotification = (notificationKey) => {
+    setNotificationsMasquees((current) => {
+      const updated = [...new Set([...current, notificationKey])];
+      localStorage.setItem("notificationsMasquees", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const supprimerNotification = async (notification) => {
+    const supprimerDansRubrique = window.confirm(
+      "OK : supprimer aussi dans la rubrique concernée.\nAnnuler : supprimer uniquement cette notification."
+    );
+
+    if (supprimerDansRubrique && notification.type === "p4") {
+      await supprimerP4Conge(notification.item, false);
+      return;
+    }
+
+    masquerNotification(notification.key);
   };
 
   const changerProduitCaisseCafe = (produit) => {
@@ -6434,28 +6459,82 @@ if (page === "identityDetails" && selectedIdentity) {
   const peutVoirAlertesAccueil =
     currentUser?.role === "LE TÔLIER" ||
     currentUser?.role === "ADMINISTRATEUR";
-  const demandesP4EnAttente = p4Conges.filter(
-    (item) => getP4Nature(item) === "demande" && item.statut === "demande"
-  );
-  const previsionnelsP4EnAttente = p4Conges.filter(
-    (item) => getP4Nature(item) === "previsionnel" && item.statut === "previsionnel"
-  );
-  const alertesAccueil = [
-    {
-      key: "p4-demandes",
-      titre: "Demandes de congé à valider",
-      detail: `${demandesP4EnAttente.length} demande(s) en attente`,
-      count: demandesP4EnAttente.length,
-      page: "p4",
-    },
-    {
-      key: "p4-previsionnels",
-      titre: "Prévisionnels à contrôler",
-      detail: `${previsionnelsP4EnAttente.length} prévisionnel(s) en attente`,
-      count: previsionnelsP4EnAttente.length,
-      page: "p4",
-    },
-  ].filter((alerte) => alerte.count > 0);
+  const notificationsATraiter = p4Conges
+    .filter((item) =>
+      (getP4Nature(item) === "demande" && item.statut === "demande") ||
+      (getP4Nature(item) === "previsionnel" && item.statut === "previsionnel")
+    )
+    .map((item) => ({
+      key: `p4-${item.id}`,
+      type: "p4",
+      titre:
+        getP4Nature(item) === "previsionnel"
+          ? "Prévisionnel P4 à contrôler"
+          : "Demande de congé P4 à valider",
+      item,
+    }))
+    .filter((notification) => !notificationsMasquees.includes(notification.key));
+
+  if (page === "aTraiter" && peutVoirAlertesAccueil) {
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("home")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">À traiter</h2>
+
+        <div className="results-list">
+          {notificationsATraiter.length === 0 && (
+            <div className="admin-card">Aucune notification importante.</div>
+          )}
+
+          {notificationsATraiter.map((notification) => {
+            const item = notification.item;
+
+            return (
+              <div className="person-card" key={notification.key}>
+                <div className="avatar">⚠️</div>
+
+                <div className="person-info">
+                  <div className="person-name">{notification.titre}</div>
+                  <div>Collègue : {getP4CollegueLabel(item.collegue)}</div>
+                  <div>Type : {getP4TypeCourt(item.type)}</div>
+                  <div>
+                    Période : {formatDateFr(item.date_debut)} au{" "}
+                    {formatDateFr(item.date_fin || item.date_debut)}
+                  </div>
+                  <div>Nature : {getP4NatureLabel(item)}</div>
+                  <div>Demandé le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}</div>
+                  {item.commentaire && <div>Commentaire : {item.commentaire}</div>}
+
+                  <div className="person-actions">
+                    <button
+                      className="edit-btn"
+                      onClick={() => changerStatutP4Conge(item, "valide")}
+                    >
+                      Valider
+                    </button>
+
+                    <button
+                      className="delete-btn"
+                      onClick={() => supprimerNotification(notification)}
+                    >
+                      Supprimer notification
+                    </button>
+
+                    <button className="cancel-btn" onClick={() => setPage("p4")}>
+                      Ouvrir P4
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="home-page">
@@ -6470,36 +6549,17 @@ if (page === "identityDetails" && selectedIdentity) {
       </div>
 
       {peutVoirAlertesAccueil && (
-        <div className={`home-alerts ${alertesAccueil.length === 0 ? "empty" : ""}`}>
-          <div className="home-alerts-header">
-            <strong>À traiter</strong>
-            <span>
-              {alertesAccueil.length === 0
-                ? "Aucune alerte importante"
-                : `${alertesAccueil.reduce((total, item) => total + item.count, 0)} élément(s)`}
-            </span>
-          </div>
-
-          {alertesAccueil.length === 0 ? (
-            <p>Rien en attente pour le moment.</p>
-          ) : (
-            <div className="home-alerts-list">
-              {alertesAccueil.map((alerte) => (
-                <button
-                  className="home-alert-item"
-                  key={alerte.key}
-                  onClick={() => setPage(alerte.page)}
-                >
-                  <span className="home-alert-count">{alerte.count}</span>
-                  <span>
-                    <strong>{alerte.titre}</strong>
-                    <small>{alerte.detail}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <button
+          className={`home-wide-action home-alerts ${notificationsATraiter.length === 0 ? "empty" : ""}`}
+          onClick={() => setPage("aTraiter")}
+        >
+          <span>À traiter</span>
+          <strong>
+            {notificationsATraiter.length === 0
+              ? "Aucune alerte importante"
+              : `${notificationsATraiter.length} élément(s)`}
+          </strong>
+        </button>
       )}
 
       <div className="menu-grid">
@@ -6543,17 +6603,15 @@ if (page === "identityDetails" && selectedIdentity) {
           <span>Vie de groupe</span>
         </div>
 
-        {currentUser &&
-  currentUser.role !== "MEMBRE" &&
-  (currentUser.role === "LE TÔLIER" ||
-    currentUser.role === "ADMINISTRATEUR") && (
-  <div className="menu-card" onClick={() => setPage("admin")}>
-    ⚙️
-    <span>Administration</span>
-  </div>
-)}
-        
       </div>
+
+      {peutVoirAlertesAccueil && (
+        <button className="home-wide-action admin-home-action" onClick={() => setPage("admin")}>
+          <span>Administration</span>
+          <strong>Gestion utilisateurs, historique et droits</strong>
+        </button>
+      )}
+
       <PhotoZoomOverlay
         photoZoom={photoZoom}
         onClose={() => setPhotoZoom("")}
