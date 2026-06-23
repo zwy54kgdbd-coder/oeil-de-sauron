@@ -504,6 +504,19 @@ button {
   margin-top: 8px;
 }
 
+.vie-groupe-dossier-field {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+  margin-top: 10px;
+  white-space: pre-wrap;
+}
+
+.vie-groupe-dossier-field strong {
+  color: #d4af37;
+  display: block;
+  margin-bottom: 4px;
+}
+
 .p4-alert-card {
   display: flex;
   align-items: center;

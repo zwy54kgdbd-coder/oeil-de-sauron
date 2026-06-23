@@ -21,6 +21,7 @@ const tables = [
   "interpellations",
   "p4_conges",
   "vie_groupe",
+  "vie_groupe_dossiers",
 ];
 
 const storageBuckets = ["photos-identites"];

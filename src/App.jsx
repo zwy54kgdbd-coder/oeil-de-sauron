@@ -37,6 +37,59 @@ const TYPES_CONGES_P4 = [
   "STAGE",
   "OPTION",
 ];
+const VIE_GROUPE_MODULES = {
+  ficheIndividuelle: {
+    label: "Fiche individuelle",
+    tableType: "fiche_individuelle",
+    icon: "🩺",
+  },
+  materiel: {
+    label: "Matériel",
+    tableType: "materiel",
+    icon: "🎒",
+  },
+  habilitations: {
+    label: "Habilitations",
+    tableType: "habilitations",
+    icon: "🎓",
+  },
+  tir: {
+    label: "Tir",
+    tableType: "tir",
+    icon: "🎯",
+  },
+};
+const VIE_GROUPE_DOSSIER_FIELDS = {
+  ficheIndividuelle: [
+    ["maladies", "Maladie(s)"],
+    ["traitements", "Traitement(s)"],
+    ["allergies", "Allergie(s)"],
+    ["groupe_sanguin", "Groupe sanguin"],
+    ["coordonnees", "Coordonnées perso"],
+    ["personne_confiance_nom", "Personne de confiance - nom"],
+    ["personne_confiance_prenom", "Personne de confiance - prénom"],
+    ["personne_confiance_telephone", "Personne de confiance - téléphone"],
+    ["autre", "Autre"],
+  ],
+  materiel: [
+    ["materiel", "Matériel"],
+    ["references", "Références / numéros"],
+    ["etat", "État"],
+    ["observations", "Observations"],
+  ],
+  habilitations: [
+    ["habilitations", "Habilitations"],
+    ["stages", "Stages"],
+    ["dates", "Dates / validité"],
+    ["observations", "Observations"],
+  ],
+  tir: [
+    ["date_tir", "Date du tir"],
+    ["arme", "Arme"],
+    ["resultat", "Résultat"],
+    ["observations", "Observations"],
+  ],
+};
 const P4_CYCLE_START = "2026-01-12";
 const createP4Period = () => ({
   tempId: `${Date.now()}-${Math.random()}`,
@@ -574,6 +627,11 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [editingVieGroupePhotoId, setEditingVieGroupePhotoId] = useState(null);
   const [vieGroupeTexte, setVieGroupeTexte] = useState("");
   const [editingVieGroupeId, setEditingVieGroupeId] = useState(null);
+  const [vieGroupeDossiers, setVieGroupeDossiers] = useState([]);
+  const [selectedVieGroupeModule, setSelectedVieGroupeModule] = useState(null);
+  const [selectedVieGroupeCollegue, setSelectedVieGroupeCollegue] = useState("");
+  const [editingVieGroupeDossierId, setEditingVieGroupeDossierId] = useState(null);
+  const [vieGroupeDossierForm, setVieGroupeDossierForm] = useState({});
     useEffect(() => {
   if (!logged) return;
 
@@ -587,6 +645,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   chargerInterpellations();
   chargerP4Conges();
   chargerVieGroupe();
+  chargerVieGroupeDossiers();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -738,6 +797,21 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const vieGroupeDossiersChannel = supabase
+    .channel("realtime-vie-groupe-dossiers")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "vie_groupe_dossiers",
+      },
+      () => {
+        chargerVieGroupeDossiers();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
@@ -749,6 +823,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     supabase.removeChannel(interpellationsChannel);
     supabase.removeChannel(p4CongesChannel);
     supabase.removeChannel(vieGroupeChannel);
+    supabase.removeChannel(vieGroupeDossiersChannel);
   };
 }, [logged]);
 
@@ -1018,6 +1093,21 @@ const chargerVieGroupe = async () => {
   setVieGroupeItems(data || []);
 };
 
+const chargerVieGroupeDossiers = async () => {
+  const { data, error } = await supabase
+    .from("vie_groupe_dossiers")
+    .select("*")
+    .order("collegue", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR DOSSIERS VIE DE GROUPE :", error);
+    return;
+  }
+
+  setVieGroupeDossiers(data || []);
+};
+
   const saveUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     localStorage.setItem("users", JSON.stringify(updatedUsers));
@@ -1244,6 +1334,112 @@ const chargerVieGroupe = async () => {
     await chargerVieGroupe();
     resetVieGroupePhotoForm();
     e.target.value = "";
+  };
+
+  const peutGererVieGroupeDossiers =
+    currentUser?.role === "LE TÔLIER" ||
+    currentUser?.role === "ADMINISTRATEUR";
+
+  const peutModifierVieGroupeDossier = (item) =>
+    peutGererVieGroupeDossiers || item.created_by === currentUser?.username;
+
+  const ouvrirVieGroupeDossier = (moduleKey, collegue) => {
+    setSelectedVieGroupeModule(moduleKey);
+    setSelectedVieGroupeCollegue(collegue);
+    setEditingVieGroupeDossierId(null);
+    setVieGroupeDossierForm({});
+    setPage("vieGroupeDossier");
+  };
+
+  const modifierVieGroupeDossier = (item) => {
+    if (!peutModifierVieGroupeDossier(item)) {
+      alert("Tu peux modifier uniquement ta fiche.");
+      return;
+    }
+
+    setEditingVieGroupeDossierId(item.id);
+    setVieGroupeDossierForm(item.data || {});
+  };
+
+  const resetVieGroupeDossierForm = () => {
+    setEditingVieGroupeDossierId(null);
+    setVieGroupeDossierForm({});
+  };
+
+  const changerVieGroupeDossierForm = (field, value) => {
+    setVieGroupeDossierForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const enregistrerVieGroupeDossier = async () => {
+    const module = VIE_GROUPE_MODULES[selectedVieGroupeModule];
+    const collegueFinal = selectedVieGroupeCollegue;
+
+    if (!module || !collegueFinal) return;
+
+    if (!peutGererVieGroupeDossiers && collegueFinal !== collegueP4Utilisateur) {
+      alert("Tu peux modifier uniquement ta fiche.");
+      return;
+    }
+
+    const payload = {
+      type: module.tableType,
+      collegue: collegueFinal,
+      data: vieGroupeDossierForm,
+      created_by: currentUser?.username || "Inconnu",
+      updated_by: currentUser?.username || "Inconnu",
+    };
+    const result = editingVieGroupeDossierId
+      ? await supabase
+          .from("vie_groupe_dossiers")
+          .update({
+            data: vieGroupeDossierForm,
+            updated_by: currentUser?.username || "Inconnu",
+          })
+          .eq("id", editingVieGroupeDossierId)
+      : await supabase.from("vie_groupe_dossiers").insert([payload]);
+
+    if (result.error) {
+      alert("Erreur vie de groupe : " + result.error.message);
+      return;
+    }
+
+    await chargerVieGroupeDossiers();
+    ajouterHistorique(
+      `${editingVieGroupeDossierId ? "Modification" : "Ajout"} ${module.label} : ${collegueFinal}`,
+      "vie_groupe_dossiers",
+      editingVieGroupeDossierId
+    );
+    resetVieGroupeDossierForm();
+  };
+
+  const supprimerVieGroupeDossier = async (item) => {
+    if (!peutGererVieGroupeDossiers) {
+      alert("Seuls le Tôlier et les administrateurs peuvent supprimer.");
+      return;
+    }
+
+    const confirmation = window.confirm("Supprimer cette fiche ?");
+    if (!confirmation) return;
+
+    const { error } = await supabase
+      .from("vie_groupe_dossiers")
+      .delete()
+      .eq("id", item.id);
+
+    if (error) {
+      alert("Erreur suppression fiche : " + error.message);
+      return;
+    }
+
+    await chargerVieGroupeDossiers();
+    ajouterHistorique(
+      `Suppression fiche vie de groupe : ${item.type} ${item.collegue}`,
+      "vie_groupe_dossiers",
+      item.id
+    );
   };
 
   const basculerFavoriIdentite = async (person) => {
@@ -5642,6 +5838,143 @@ if (page === "identityDetails" && selectedIdentity) {
             📸
             <span>Quotidien</span>
           </div>
+
+          {Object.entries(VIE_GROUPE_MODULES).map(([key, module]) => (
+            <div
+              className="menu-card"
+              key={key}
+              onClick={() => {
+                setSelectedVieGroupeModule(key);
+                setPage("vieGroupeModule");
+              }}
+            >
+              {module.icon}
+              <span>{module.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (page === "vieGroupeModule") {
+    const module = VIE_GROUPE_MODULES[selectedVieGroupeModule];
+
+    if (!module) {
+      setPage("vieGroupe");
+      return null;
+    }
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("vieGroupe")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">{module.label}</h2>
+
+        <div className="admin-card">
+          <h3>Collègues</h3>
+          {COLLEGUES_CAISSE_CAFE.map((collegue) => (
+            <div
+              className="user-line"
+              key={collegue}
+              onClick={() => ouvrirVieGroupeDossier(selectedVieGroupeModule, collegue)}
+            >
+              <strong>{collegue}</strong>
+              <button className="edit-btn">Ouvrir</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (page === "vieGroupeDossier") {
+    const module = VIE_GROUPE_MODULES[selectedVieGroupeModule];
+    const fields = VIE_GROUPE_DOSSIER_FIELDS[selectedVieGroupeModule] || [];
+    const dossiers = vieGroupeDossiers.filter(
+      (item) =>
+        item.type === module?.tableType &&
+        item.collegue === selectedVieGroupeCollegue
+    );
+    const peutAjouterDossier =
+      peutGererVieGroupeDossiers ||
+      selectedVieGroupeCollegue === collegueP4Utilisateur;
+
+    if (!module) {
+      setPage("vieGroupe");
+      return null;
+    }
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("vieGroupeModule")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">
+          {module.label} - {selectedVieGroupeCollegue}
+        </h2>
+
+        {peutAjouterDossier && (
+          <div className="admin-card">
+            <h3>{editingVieGroupeDossierId ? "Modifier" : "Ajouter"}</h3>
+            {fields.map(([field, label]) => (
+              <textarea
+                key={field}
+                placeholder={label}
+                value={vieGroupeDossierForm[field] || ""}
+                onChange={(e) => changerVieGroupeDossierForm(field, e.target.value)}
+              />
+            ))}
+
+            <button className="admin-main-btn" onClick={enregistrerVieGroupeDossier}>
+              {editingVieGroupeDossierId ? "Enregistrer modification" : "Ajouter"}
+            </button>
+
+            {editingVieGroupeDossierId && (
+              <button className="cancel-btn" onClick={resetVieGroupeDossierForm}>
+                Annuler modification
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="admin-card">
+          <h3>Fiches enregistrées</h3>
+          {dossiers.length === 0 && <p>Aucune fiche enregistrée.</p>}
+
+          {dossiers.map((item) => (
+            <div className="vie-groupe-note" key={item.id}>
+              <div className="vie-groupe-note-meta">
+                Ajouté par : {item.created_by || "Inconnu"} - {formatDateFr(item.created_at)}
+              </div>
+
+              {fields.map(([field, label]) =>
+                item.data?.[field] ? (
+                  <div className="vie-groupe-dossier-field" key={field}>
+                    <strong>{label}</strong>
+                    <div>{item.data[field]}</div>
+                  </div>
+                ) : null
+              )}
+
+              {peutModifierVieGroupeDossier(item) && (
+                <div className="user-buttons">
+                  <button className="edit-btn" onClick={() => modifierVieGroupeDossier(item)}>
+                    Modifier
+                  </button>
+
+                  {peutGererVieGroupeDossiers && (
+                    <button className="delete-btn" onClick={() => supprimerVieGroupeDossier(item)}>
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     );
