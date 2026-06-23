@@ -659,6 +659,12 @@ const [nouvelleIdentiteTelephone, setNouvelleIdentiteTelephone] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
+  const [rechercheIndividus, setRechercheIndividus] = useState("");
+  const [rechercheVehicules, setRechercheVehicules] = useState("");
+  const [rechercheFavoris, setRechercheFavoris] = useState("");
+  const [rechercheInterpellations, setRechercheInterpellations] = useState("");
+  const [rechercheCamps, setRechercheCamps] = useState("");
+  const [rechercheNumerosUtiles, setRechercheNumerosUtiles] = useState("");
   const [recherchePhoto, setRecherchePhoto] = useState("");
   const [recherchePhotoResults, setRecherchePhotoResults] = useState([]);
   const [recherchePhotoLoading, setRecherchePhotoLoading] = useState(false);
@@ -684,7 +690,7 @@ const [telephone, setTelephone] = useState("");
   const [photoPrincipaleIndex, setPhotoPrincipaleIndex] = useState(0);
   const [photoZoom, setPhotoZoom] = useState("");
   const [selectedIdentity, setSelectedIdentity] = useState(null);
-  const [identityDetailsReturnPage, setIdentityDetailsReturnPage] = useState("search");
+  const [identityDetailsReturnPage, setIdentityDetailsReturnPage] = useState("individus");
 const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [vehicleDetailsReturnPage, setVehicleDetailsReturnPage] = useState("vehicules");
   const [nouveauFaitDate, setNouveauFaitDate] = useState("");
@@ -3667,7 +3673,7 @@ telephone,
   }
 
   resetIdentityForm();
-  setPage("search");
+  setPage("individus");
 };
 
   const modifierIdentite = (person) => {
@@ -4800,7 +4806,7 @@ if (page === "identityDetails" && selectedIdentity) {
   );
 }
   if (page === "secteurs") {
-    const rechercheSecteurClean = rechercheSecteur.trim().toLowerCase();
+    const rechercheSecteurClean = normaliserRecherche(rechercheSecteur);
     const secteursIdentites =
       typeSecteur === "habituel"
         ? identites.map((person) => person.secteur).filter(Boolean)
@@ -4812,7 +4818,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
     const secteursUniques = [...new Set([...secteursIdentites, ...secteursVehicules])]
       .filter((secteurNom) =>
-        secteurNom.toLowerCase().includes(rechercheSecteurClean)
+        normaliserRecherche(secteurNom).includes(rechercheSecteurClean)
       );
 
     return (
@@ -4921,11 +4927,31 @@ if (page === "identityDetails" && selectedIdentity) {
   }
 
   if (page === "vehicules") {
-    const vehiculesTries = [...vehicules].sort((a, b) =>
-      getNomVehicule(a).localeCompare(getNomVehicule(b), "fr", {
-        sensitivity: "base",
-      })
-    );
+    const rechercheVehiculesClean = normaliserRecherche(rechercheVehicules);
+    const vehiculesTries = [...vehicules]
+      .filter((item) =>
+        !rechercheVehiculesClean ||
+        normaliserRecherche(
+          [
+            item.marque,
+            item.modele,
+            item.couleur,
+            item.plaque,
+            item.secteur,
+            item.faits,
+            item.fuite,
+            item.observations,
+            getNomIdentite(identites, item.individuId),
+          ]
+            .filter(Boolean)
+            .join(" ")
+        ).includes(rechercheVehiculesClean)
+      )
+      .sort((a, b) =>
+        getNomVehicule(a).localeCompare(getNomVehicule(b), "fr", {
+          sensitivity: "base",
+        })
+      );
 
     return (
       <div className="home-page">
@@ -4934,6 +4960,14 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
 
         <h2 className="section-title">Véhicules</h2>
+
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Rechercher dans les véhicules..."
+          value={rechercheVehicules}
+          onChange={(e) => setRechercheVehicules(e.target.value)}
+        />
 
         <button
           className="admin-main-btn"
@@ -4946,8 +4980,8 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
 
         <div className="results-list">
-          {vehicules.length === 0 && (
-            <div className="admin-card">Aucun véhicule enregistré.</div>
+          {vehiculesTries.length === 0 && (
+            <div className="admin-card">Aucun véhicule trouvé.</div>
           )}
 
           {vehiculesTries.map((item) => (
@@ -5440,6 +5474,28 @@ if (page === "identityDetails" && selectedIdentity) {
   }
 
   if (page === "individus") {
+    const rechercheIndividusClean = normaliserRecherche(rechercheIndividus);
+    const identitesFiltrees = trierIdentitesParNom(
+      identites.filter((person) =>
+        !rechercheIndividusClean ||
+        normaliserRecherche(
+          [
+            person.nom,
+            person.prenom,
+            person.alias,
+            person.secteur,
+            person.faits,
+            person.observations,
+            ...vehicules
+              .filter((item) => String(item.individuId) === String(person.id))
+              .map((item) => getNomVehicule(item)),
+          ]
+            .filter(Boolean)
+            .join(" ")
+        ).includes(rechercheIndividusClean)
+      )
+    );
+
     return (
       <div className="home-page">
         <button className="back-btn" onClick={() => setPage("home")}>
@@ -5448,14 +5504,22 @@ if (page === "identityDetails" && selectedIdentity) {
 
         <h2 className="section-title">Individus enregistrés</h2>
 
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Rechercher dans les individus..."
+          value={rechercheIndividus}
+          onChange={(e) => setRechercheIndividus(e.target.value)}
+        />
+
         <div className="results-list">
-          {identites.length === 0 && (
+          {identitesFiltrees.length === 0 && (
             <div className="admin-card">
-              Aucune identité enregistrée.
+              Aucune identité trouvée.
             </div>
           )}
 
-          {trierIdentitesParNom(identites).map((person) => (
+          {identitesFiltrees.map((person) => (
             <div
               className="person-card"
               key={person.id}
@@ -6110,6 +6174,24 @@ if (page === "identityDetails" && selectedIdentity) {
     const getInterpellationDate = (item) => new Date(item.date_interpellation);
     const getInterpellationYear = (item) => getInterpellationDate(item).getFullYear();
     const getInterpellationMonth = (item) => getInterpellationDate(item).getMonth();
+    const rechercheInterpellationsClean = normaliserRecherche(rechercheInterpellations);
+    const matchInterpellation = (item) =>
+      !rechercheInterpellationsClean ||
+      normaliserRecherche(
+        [
+          getInterpellationYear(item),
+          MOIS_FR[getInterpellationMonth(item)],
+          item.type,
+          item.auteur,
+          item.auteurs,
+          item.auteur_nom,
+          item.auteur_prenom,
+          item.infractions,
+          item.nombre_interpelles,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      ).includes(rechercheInterpellationsClean);
     const totalInterpelles = (items) =>
       items.reduce((total, item) => total + Number(item.nombre_interpelles || 0), 0);
     const statsInfractions = (items) => {
@@ -6132,10 +6214,20 @@ if (page === "identityDetails" && selectedIdentity) {
         ...anneesInterpellationsAjoutees,
         ...interpellations.map((item) => getInterpellationYear(item)),
       ]),
-    ].sort((a, b) => b - a);
+    ]
+      .filter((annee) =>
+        !rechercheInterpellationsClean ||
+        String(annee).includes(rechercheInterpellationsClean) ||
+        interpellations.some(
+          (item) => getInterpellationYear(item) === annee && matchInterpellation(item)
+        )
+      )
+      .sort((a, b) => b - a);
     const interpellationsAnnee = selectedInterpellationYear
       ? interpellations.filter(
-          (item) => getInterpellationYear(item) === selectedInterpellationYear
+          (item) =>
+            getInterpellationYear(item) === selectedInterpellationYear &&
+            matchInterpellation(item)
         )
       : [];
     const interpellationsMois =
@@ -6154,6 +6246,14 @@ if (page === "identityDetails" && selectedIdentity) {
 
           <h2 className="section-title">Interpellations</h2>
 
+          <input
+            className="search-input"
+            type="text"
+            placeholder="Rechercher dans les interpellations..."
+            value={rechercheInterpellations}
+            onChange={(e) => setRechercheInterpellations(e.target.value)}
+          />
+
           <button className="admin-main-btn" onClick={ajouterAnneeInterpellation}>
             Ajouter une année
           </button>
@@ -6161,7 +6261,7 @@ if (page === "identityDetails" && selectedIdentity) {
           <div className="results-list">
             {annees.map((annee) => {
               const fichesAnnee = interpellations.filter(
-                (item) => getInterpellationYear(item) === annee
+                (item) => getInterpellationYear(item) === annee && matchInterpellation(item)
               );
               const stats = statsInfractions(fichesAnnee);
 
@@ -6218,6 +6318,14 @@ if (page === "identityDetails" && selectedIdentity) {
           </button>
 
           <h2 className="section-title">Interpellations {selectedInterpellationYear}</h2>
+
+          <input
+            className="search-input"
+            type="text"
+            placeholder="Rechercher dans les interpellations..."
+            value={rechercheInterpellations}
+            onChange={(e) => setRechercheInterpellations(e.target.value)}
+          />
 
           <div className="admin-card">
             <h3>Décompte annuel</h3>
@@ -6297,6 +6405,14 @@ if (page === "identityDetails" && selectedIdentity) {
         <h2 className="section-title">
           {MOIS_FR[selectedInterpellationMonth]} {selectedInterpellationYear}
         </h2>
+
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Rechercher dans les fiches du mois..."
+          value={rechercheInterpellations}
+          onChange={(e) => setRechercheInterpellations(e.target.value)}
+        />
 
         <div className="admin-card">
           <h3>Décompte du mois</h3>
@@ -7088,10 +7204,28 @@ if (page === "identityDetails" && selectedIdentity) {
     const peutSupprimerCamp =
       currentUser?.role === "LE TÔLIER" ||
       currentUser?.role === "ADMINISTRATEUR";
+    const rechercheCampsClean = normaliserRecherche(rechercheCamps);
     const campsCategorie = (selectedCampCategory
       ? camps.filter((item) => item.categorie === selectedCampCategory)
       : []
-    ).sort((a, b) =>
+    )
+      .filter((item) =>
+        !rechercheCampsClean ||
+        normaliserRecherche(
+          [
+            item.lieu,
+            item.adresse,
+            item.famille,
+            item.vehicule,
+            item.faits,
+            item.observations,
+            getLibelleIdentite(getIdentite(identites, item.identite_id) || {}),
+          ]
+            .filter(Boolean)
+            .join(" ")
+        ).includes(rechercheCampsClean)
+      )
+      .sort((a, b) =>
       `${a.lieu || ""} ${a.adresse || ""} ${a.famille || ""}`.localeCompare(
         `${b.lieu || ""} ${b.adresse || ""} ${b.famille || ""}`,
         "fr",
@@ -7140,6 +7274,14 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
 
         <h2 className="section-title">Camps - {getCampCategorieLabel(selectedCampCategory)}</h2>
+
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Rechercher dans les camps..."
+          value={rechercheCamps}
+          onChange={(e) => setRechercheCamps(e.target.value)}
+        />
 
         <div className="admin-card">
           <h3>{editingCampId ? "Modifier" : "Ajouter"}</h3>
@@ -7271,6 +7413,31 @@ if (page === "identityDetails" && selectedIdentity) {
     const peutSupprimerNumeroUtile =
       currentUser?.role === "LE TÔLIER" ||
       currentUser?.role === "ADMINISTRATEUR";
+    const rechercheNumerosClean = normaliserRecherche(rechercheNumerosUtiles);
+    const numerosUtilesFiltres = numerosUtiles
+      .filter((item) =>
+        !rechercheNumerosClean ||
+        normaliserRecherche(
+          [
+            item.grade,
+            item.nom,
+            item.prenom,
+            item.fonction,
+            item.numero,
+            ...(Array.isArray(item.numeros) ? item.numeros : []),
+            item.observations,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        ).includes(rechercheNumerosClean)
+      )
+      .sort((a, b) =>
+        `${a.nom || ""} ${a.prenom || ""}`.localeCompare(
+          `${b.nom || ""} ${b.prenom || ""}`,
+          "fr",
+          { sensitivity: "base" }
+        )
+      );
 
     return (
       <div className="home-page">
@@ -7285,6 +7452,14 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
 
         <h2 className="section-title">Numéros utiles</h2>
+
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Rechercher dans les numéros utiles..."
+          value={rechercheNumerosUtiles}
+          onChange={(e) => setRechercheNumerosUtiles(e.target.value)}
+        />
 
         <div className="admin-card">
           <h3>{editingNumeroUtileId ? "Modifier" : "Ajouter"}</h3>
@@ -7357,11 +7532,11 @@ if (page === "identityDetails" && selectedIdentity) {
         </div>
 
         <div className="results-list">
-          {numerosUtiles.length === 0 && (
-            <div className="admin-card">Aucun numéro utile enregistré.</div>
+          {numerosUtilesFiltres.length === 0 && (
+            <div className="admin-card">Aucun numéro utile trouvé.</div>
           )}
 
-          {numerosUtiles.map((item) => {
+          {numerosUtilesFiltres.map((item) => {
             const numeros = Array.isArray(item.numeros) && item.numeros.length > 0
               ? item.numeros
               : [item.numero].filter(Boolean);
@@ -8164,10 +8339,38 @@ if (page === "identityDetails" && selectedIdentity) {
   }
 
   if (page === "favorisBac") {
+    const rechercheFavorisClean = normaliserRecherche(rechercheFavoris);
     const identitesFavorites = trierIdentitesParNom(
-      identites.filter((person) => person.favori_bac)
+      identites.filter((person) =>
+        person.favori_bac &&
+        (
+          !rechercheFavorisClean ||
+          normaliserRecherche(
+            [person.nom, person.prenom, person.alias, person.secteur, person.faits]
+              .filter(Boolean)
+              .join(" ")
+          ).includes(rechercheFavorisClean)
+        )
+      )
     );
-    const vehiculesFavoris = vehicules.filter((item) => item.favori_bac);
+    const vehiculesFavoris = vehicules.filter((item) =>
+      item.favori_bac &&
+      (
+        !rechercheFavorisClean ||
+        normaliserRecherche(
+          [
+            getNomVehicule(item),
+            item.plaque,
+            item.couleur,
+            item.secteur,
+            item.faits,
+            getNomIdentite(identites, item.individuId),
+          ]
+            .filter(Boolean)
+            .join(" ")
+        ).includes(rechercheFavorisClean)
+      )
+    );
 
     return (
       <div className="home-page">
@@ -8176,6 +8379,14 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
 
         <h2 className="section-title">Favoris BAC</h2>
+
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Rechercher dans les favoris BAC..."
+          value={rechercheFavoris}
+          onChange={(e) => setRechercheFavoris(e.target.value)}
+        />
 
         <div className="admin-card">
           <h3>Individus prioritaires</h3>
@@ -8502,6 +8713,111 @@ if (page === "identityDetails" && selectedIdentity) {
           onChange={(e) => setGlobalSearch(e.target.value)}
         />
 
+        <div className="photo-search-panel">
+          <h3>Recherche par photo</h3>
+
+          <div className="photo-buttons">
+            <label className="photo-btn">
+              Prendre une photo
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={rechercherParPhoto}
+              />
+            </label>
+
+            <label className="photo-btn">
+              Galerie photo
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={rechercherParPhoto}
+              />
+            </label>
+          </div>
+
+          {recherchePhoto && (
+            <div className="photo-search-preview">
+              <img
+                src={recherchePhoto}
+                alt="photo recherchée"
+                className="photo-search-img"
+                onClick={() => setPhotoZoom(recherchePhoto)}
+              />
+
+              <button className="delete-btn" onClick={resetRecherchePhoto}>
+                Effacer
+              </button>
+            </div>
+          )}
+
+          {recherchePhotoLoading && (
+            <p>Détection du visage et comparaison en cours...</p>
+          )}
+          {recherchePhotoError && <p>{recherchePhotoError}</p>}
+        </div>
+
+        {recherchePhoto && !recherchePhotoLoading && (
+          <div className="photo-search-results">
+            <h3>Résultats photo</h3>
+
+            {recherchePhotoResults.length === 0 && (
+              <div className="admin-card">
+                Aucun visage comparable trouvé dans les photos enregistrées.
+              </div>
+            )}
+
+            <div className="results-list">
+              {recherchePhotoResults.map((person) => (
+                <div
+                  className="person-card"
+                  key={`photo-globale-${person.id}`}
+                  onClick={() => {
+                    setSelectedIdentity(person);
+                    setIdentityDetailsReturnPage("rechercheGlobale");
+                    setPage("identityDetails");
+                  }}
+                >
+                  <div className="avatar identity-photo">
+                    <img
+                      src={person.photoResultat || getPhotoPrincipale(person)}
+                      alt="photo"
+                      className="person-photo"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setPhotoZoom(
+                          person.photoResultat || getPhotoPrincipale(person)
+                        );
+                      }}
+                    />
+                  </div>
+
+                  <div className="person-info">
+                    <div className="person-name">
+                      {person.nom} {person.prenom}
+                    </div>
+                    {person.alias && (
+                      <div className="person-alias">Alias : {person.alias}</div>
+                    )}
+                    <div className="important-amount">
+                      Score visage : {person.proximite}%
+                    </div>
+                    <div>Résultat : {person.niveauCorrespondance}</div>
+                    <div>Distance technique : {person.distanceVisage.toFixed(3)}</div>
+                    {person.secteur && (
+                      <div>Secteur habituel : {person.secteur}</div>
+                    )}
+                    {person.faits && <div>Secteur faits : {person.faits}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!query && <div className="admin-card">Renseigne une recherche.</div>}
 
         {query && (
@@ -8586,6 +8902,11 @@ if (page === "identityDetails" && selectedIdentity) {
             </div>
           </div>
         ))}
+
+        <PhotoZoomOverlay
+          photoZoom={photoZoom}
+          onClose={() => setPhotoZoom("")}
+        />
       </div>
     );
   }
@@ -8602,6 +8923,14 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
       </div>
 
+      <button
+        className="home-wide-action home-global-search"
+        onClick={() => setPage("rechercheGlobale")}
+      >
+        <span>Recherche globale</span>
+        <strong>Nom, photo, plaque, secteur, camp, numéro, fait...</strong>
+      </button>
+
       {peutVoirAlertesAccueil && (
         <button
           className={`home-wide-action home-alerts ${notificationsATraiter.length === 0 ? "empty" : ""}`}
@@ -8617,16 +8946,6 @@ if (page === "identityDetails" && selectedIdentity) {
       )}
 
       <div className="menu-grid">
-        <div className="menu-card" onClick={() => setPage("search")}>
-          🔍
-          <span>Recherche</span>
-        </div>
-
-        <div className="menu-card" onClick={() => setPage("rechercheGlobale")}>
-          🧭
-          <span>Recherche globale</span>
-        </div>
-
         <div className="menu-card" onClick={() => setPage("add")}>
           ➕
           <span>Ajouter une identité</span>

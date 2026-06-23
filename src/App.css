@@ -173,6 +173,24 @@ button {
   box-shadow: none;
 }
 
+.home-global-search {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.32), rgba(30, 30, 30, 0.96));
+  border: 1px solid rgba(243, 198, 79, 0.85);
+  box-shadow: 0 0 28px rgba(212, 175, 55, 0.22);
+  min-height: 92px;
+  padding: 24px 20px;
+}
+
+.home-global-search span {
+  font-size: 26px;
+}
+
+.home-global-search strong {
+  color: #f5e8b0;
+  font-size: 15px;
+  max-width: 48%;
+}
+
 .admin-home-action {
   background: #111;
   border: 1px solid rgba(184, 134, 11, 0.55);
@@ -1016,6 +1034,17 @@ button {
   .person-card,
   .home-wide-action {
     border-radius: 10px;
+  }
+
+  .home-global-search {
+    align-items: flex-start;
+    flex-direction: column;
+    min-height: 112px;
+  }
+
+  .home-global-search strong {
+    max-width: 100%;
+    text-align: left;
   }
 
   .person-card {
