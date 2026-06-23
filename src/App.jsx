@@ -330,6 +330,15 @@ function normaliserPlaque(value) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function normaliserLieuCamp(value) {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
 function uniquePhotos(values) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -728,6 +737,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [editingCampId, setEditingCampId] = useState(null);
   const [campLieu, setCampLieu] = useState("");
   const [campAdresse, setCampAdresse] = useState("");
+  const [duplicateCampWarningKey, setDuplicateCampWarningKey] = useState("");
   const [campFamille, setCampFamille] = useState("");
   const [campIdentiteId, setCampIdentiteId] = useState("");
   const [campVehicule, setCampVehicule] = useState("");
@@ -1506,6 +1516,7 @@ const chargerCamps = async () => {
     setEditingCampId(null);
     setCampLieu("");
     setCampAdresse("");
+    setDuplicateCampWarningKey("");
     setCampFamille("");
     setCampIdentiteId("");
     setCampVehicule("");
@@ -1517,6 +1528,7 @@ const chargerCamps = async () => {
     setEditingCampId(item.id);
     setCampLieu(item.lieu || "");
     setCampAdresse(item.adresse || "");
+    setDuplicateCampWarningKey("");
     setCampFamille(item.famille || "");
     setCampIdentiteId(item.identite_id ? String(item.identite_id) : "");
     setCampVehicule(item.vehicule || "");
@@ -1530,6 +1542,42 @@ const chargerCamps = async () => {
     setPage("add");
   };
 
+  const trouverDoublonCamp = () => {
+    if (editingCampId || !selectedCampCategory) return null;
+
+    const lieuClean = normaliserLieuCamp(campLieu);
+    const adresseClean = normaliserLieuCamp(campAdresse);
+
+    if (!lieuClean && !adresseClean) return null;
+
+    const campExistant = camps.find((item) => {
+      if (item.categorie !== selectedCampCategory) return false;
+
+      const memeLieu =
+        lieuClean && normaliserLieuCamp(item.lieu) === lieuClean;
+      const memeAdresse =
+        adresseClean && normaliserLieuCamp(item.adresse) === adresseClean;
+
+      return memeLieu || memeAdresse;
+    });
+
+    if (!campExistant) return null;
+
+    return {
+      key: `${selectedCampCategory}|${lieuClean}|${adresseClean}`,
+      camp: campExistant,
+    };
+  };
+
+  const alerterDoublonCamp = () => {
+    const doublon = trouverDoublonCamp();
+
+    if (!doublon || duplicateCampWarningKey === doublon.key) return;
+
+    alert("Attention camp existant, vérifiez s'il ne s'agit pas du même lieu.");
+    setDuplicateCampWarningKey(doublon.key);
+  };
+
   const enregistrerCamp = async () => {
     if (!selectedCampCategory) {
       alert("Choisis une catégorie.");
@@ -1539,6 +1587,17 @@ const chargerCamps = async () => {
     if (!campLieu.trim() && !campAdresse.trim() && !campFamille.trim()) {
       alert("Renseigne au moins le lieu, l'adresse ou la famille.");
       return;
+    }
+
+    const doublonCamp = trouverDoublonCamp();
+
+    if (doublonCamp && duplicateCampWarningKey !== doublonCamp.key) {
+      const continuer = window.confirm(
+        "Attention camp existant, vérifiez s'il ne s'agit pas du même lieu."
+      );
+
+      if (!continuer) return;
+      setDuplicateCampWarningKey(doublonCamp.key);
     }
 
     const payload = {
@@ -6869,6 +6928,7 @@ if (page === "identityDetails" && selectedIdentity) {
             placeholder="Lieu"
             value={campLieu}
             onChange={(e) => setCampLieu(e.target.value)}
+            onBlur={alerterDoublonCamp}
           />
 
           <input
@@ -6876,12 +6936,14 @@ if (page === "identityDetails" && selectedIdentity) {
             placeholder="Adresse"
             value={campAdresse}
             onChange={(e) => setCampAdresse(e.target.value)}
+            onBlur={alerterDoublonCamp}
           />
 
           <input
             type="text"
             placeholder="Famille"
             value={campFamille}
+            onFocus={alerterDoublonCamp}
             onChange={(e) => setCampFamille(e.target.value)}
           />
 
