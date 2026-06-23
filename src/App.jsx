@@ -179,6 +179,15 @@ function removeP4Nature(payload) {
   return rest;
 }
 
+function isVieGroupeTitreColumnMissing(error) {
+  return (error?.message || "").includes("'titre' column");
+}
+
+function removeVieGroupeTitre(payload) {
+  const { titre, ...rest } = payload;
+  return rest;
+}
+
 function normaliserPlaque(value) {
   return (value || "")
     .trim()
@@ -557,6 +566,8 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [editingP4Item, setEditingP4Item] = useState(null);
   const [vieGroupeItems, setVieGroupeItems] = useState([]);
   const [vieGroupeOnglet, setVieGroupeOnglet] = useState("photos");
+  const [vieGroupePhotoTitre, setVieGroupePhotoTitre] = useState("");
+  const [editingVieGroupePhotoId, setEditingVieGroupePhotoId] = useState(null);
   const [vieGroupeTexte, setVieGroupeTexte] = useState("");
   const [editingVieGroupeId, setEditingVieGroupeId] = useState(null);
     useEffect(() => {
@@ -1049,6 +1060,11 @@ const chargerVieGroupe = async () => {
     setEditingVieGroupeId(null);
   };
 
+  const resetVieGroupePhotoForm = () => {
+    setVieGroupePhotoTitre("");
+    setEditingVieGroupePhotoId(null);
+  };
+
   const enregistrerAnecdoteVieGroupe = async () => {
     const texte = vieGroupeTexte.trim();
 
@@ -1121,6 +1137,45 @@ const chargerVieGroupe = async () => {
     );
   };
 
+  const modifierVieGroupePhoto = (item) => {
+    if (!peutModifierVieGroupeItem(item)) {
+      alert("Tu peux modifier uniquement tes souvenirs ou anecdotes.");
+      return;
+    }
+
+    setEditingVieGroupePhotoId(item.id);
+    setVieGroupePhotoTitre(item.titre || "");
+  };
+
+  const enregistrerTitreVieGroupePhoto = async () => {
+    if (!editingVieGroupePhotoId) return;
+
+    const payload = {
+      titre: vieGroupePhotoTitre.trim(),
+      updated_by: currentUser?.username || "Inconnu",
+    };
+    let result = await supabase
+      .from("vie_groupe")
+      .update(payload)
+      .eq("id", editingVieGroupePhotoId);
+
+    if (isVieGroupeTitreColumnMissing(result.error)) {
+      result = await supabase
+        .from("vie_groupe")
+        .update(removeVieGroupeTitre(payload))
+        .eq("id", editingVieGroupePhotoId);
+    }
+
+    if (result.error) {
+      alert("Erreur titre photo : " + result.error.message);
+      return;
+    }
+
+    await chargerVieGroupe();
+    ajouterHistorique("Modification titre photo vie de groupe", "vie_groupe", editingVieGroupePhotoId);
+    resetVieGroupePhotoForm();
+  };
+
   const handleVieGroupePhoto = async (e) => {
     const files = Array.from(e.target.files || []);
 
@@ -1150,6 +1205,7 @@ const chargerVieGroupe = async () => {
 
       const payload = {
         type: "photo",
+        titre: vieGroupePhotoTitre.trim(),
         photo_url: data.publicUrl,
         redacteur: `${currentUser?.prenom || ""} ${currentUser?.nom || ""}`.trim() ||
           currentUser?.username ||
@@ -1157,7 +1213,13 @@ const chargerVieGroupe = async () => {
         created_by: currentUser?.username || "Inconnu",
         updated_by: currentUser?.username || "Inconnu",
       };
-      const result = await supabase.from("vie_groupe").insert([payload]);
+      let result = await supabase.from("vie_groupe").insert([payload]);
+
+      if (isVieGroupeTitreColumnMissing(result.error)) {
+        result = await supabase
+          .from("vie_groupe")
+          .insert([removeVieGroupeTitre(payload)]);
+      }
 
       if (result.error) {
         alert("Erreur enregistrement photo vie de groupe : " + result.error.message);
@@ -1168,6 +1230,7 @@ const chargerVieGroupe = async () => {
     }
 
     await chargerVieGroupe();
+    resetVieGroupePhotoForm();
     e.target.value = "";
   };
 
@@ -5574,6 +5637,13 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="admin-card">
           <h3>Souvenirs photos</h3>
 
+          <input
+            type="text"
+            placeholder="Titre de la photo"
+            value={vieGroupePhotoTitre}
+            onChange={(e) => setVieGroupePhotoTitre(e.target.value)}
+          />
+
           <div className="vie-groupe-actions">
             <label className="photo-upload-btn">
               Prendre une photo
@@ -5606,17 +5676,37 @@ if (page === "identityDetails" && selectedIdentity) {
                   alt="souvenir"
                   onClick={() => setPhotoZoom(item.photo_url)}
                 />
+                {item.titre && <div className="vie-groupe-photo-title">{item.titre}</div>}
                 <div className="vie-groupe-meta">
                   Ajouté par : {item.redacteur || item.created_by || "Inconnu"}
                   <br />
                   Le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
                 </div>
 
-                {peutGererVieGroupe && (
-                  <button className="delete-btn" onClick={() => supprimerVieGroupeItem(item)}>
-                    Supprimer
-                  </button>
+                {editingVieGroupePhotoId === item.id && (
+                  <>
+                    <button className="admin-main-btn" onClick={enregistrerTitreVieGroupePhoto}>
+                      Enregistrer titre
+                    </button>
+                    <button className="cancel-btn" onClick={resetVieGroupePhotoForm}>
+                      Annuler
+                    </button>
+                  </>
                 )}
+
+                <div className="user-buttons">
+                  {peutModifierVieGroupeItem(item) && (
+                    <button className="edit-btn" onClick={() => modifierVieGroupePhoto(item)}>
+                      Modifier titre
+                    </button>
+                  )}
+
+                  {peutGererVieGroupe && (
+                    <button className="delete-btn" onClick={() => supprimerVieGroupeItem(item)}>
+                      Supprimer
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -5648,9 +5738,11 @@ if (page === "identityDetails" && selectedIdentity) {
           {anecdotesVieGroupe.map((item) => (
             <div className="vie-groupe-note" key={item.id}>
               <div>
-                <strong>{item.redacteur || item.created_by || "Inconnu"}</strong>
-                <br />
-                {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
+                <div className="vie-groupe-note-meta">
+                  <strong>{item.redacteur || item.created_by || "Inconnu"}</strong>
+                  <br />
+                  {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
+                </div>
                 <p>{item.contenu}</p>
               </div>
 

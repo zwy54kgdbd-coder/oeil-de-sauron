@@ -478,11 +478,27 @@ button {
   margin: 8px 0;
 }
 
+.vie-groupe-photo-title {
+  color: #d4af37;
+  font-size: 16px;
+  font-weight: bold;
+  margin-top: 8px;
+}
+
 .vie-groupe-note {
   margin-top: 12px;
 }
 
+.vie-groupe-note-meta {
+  color: #aaa;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
 .vie-groupe-note p {
+  color: #fff;
+  font-size: 19px;
+  line-height: 1.45;
   white-space: pre-wrap;
   margin-bottom: 0;
 }
