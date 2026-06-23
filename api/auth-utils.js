@@ -33,48 +33,68 @@ export async function requireTolier(req, res) {
     return null;
   }
 
+  const rejectIfNotTolier = (profile) => {
+    if (!profile || profile.role !== "LE TÔLIER") {
+      res.status(403).json({ error: "Accès réservé au Tôlier." });
+      return null;
+    }
+
+    return profile;
+  };
+
   const authorization = req.headers.authorization || "";
   const token = authorization.replace(/^Bearer\s+/i, "").trim();
 
-  if (!token) {
-    res.status(401).json({ error: "Session manquante." });
-    return null;
+  if (token) {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+
+    if (!error && data?.user?.email) {
+      const authEmail = data.user.email.toLowerCase();
+      let { data: profile, error: profileError } = await supabaseAdmin
+        .from("users")
+        .select("username, role, auth_email")
+        .eq("auth_email", authEmail)
+        .maybeSingle();
+
+      if (!profile && authEmail === TOLIER_EMAIL.toLowerCase()) {
+        const fallback = await supabaseAdmin
+          .from("users")
+          .select("username, role, auth_email")
+          .eq("username", "tolier")
+          .maybeSingle();
+
+        profile = fallback.data;
+        profileError = fallback.error;
+      }
+
+      if (profileError) {
+        res.status(400).json({ error: profileError.message });
+        return null;
+      }
+
+      return rejectIfNotTolier(profile);
+    }
   }
 
-  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  const bodyUsername = (req.body?.username || "").trim().toLowerCase();
+  const bodyPassword = req.body?.password || "";
 
-  if (error || !data?.user?.email) {
+  if (!bodyUsername || !bodyPassword) {
     res.status(401).json({ error: "Session invalide." });
     return null;
   }
 
-  const authEmail = data.user.email.toLowerCase();
-  let { data: profile, error: profileError } = await supabaseAdmin
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from("users")
     .select("username, role, auth_email")
-    .eq("auth_email", authEmail)
+    .eq("username", bodyUsername)
+    .eq("password", bodyPassword)
     .maybeSingle();
-
-  if (!profile && authEmail === TOLIER_EMAIL.toLowerCase()) {
-    const fallback = await supabaseAdmin
-      .from("users")
-      .select("username, role, auth_email")
-      .eq("username", "tolier")
-      .maybeSingle();
-
-    profile = fallback.data;
-    profileError = fallback.error;
-  }
 
   if (profileError) {
     res.status(400).json({ error: profileError.message });
     return null;
   }
 
-  if (!profile || profile.role !== "LE TÔLIER") {
-    res.status(403).json({ error: "Accès réservé au Tôlier." });
-    return null;
-  }
-
-  return profile;
+  return rejectIfNotTolier(profile);
 }

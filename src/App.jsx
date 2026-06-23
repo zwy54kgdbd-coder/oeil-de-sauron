@@ -207,6 +207,16 @@ function normaliserRecherche(value) {
     .toLowerCase();
 }
 
+function texteRechercheGlobal(value) {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map(texteRechercheGlobal).join(" ");
+  if (typeof value === "object") {
+    return Object.values(value).map(texteRechercheGlobal).join(" ");
+  }
+
+  return String(value);
+}
+
 function normaliserP4(value) {
   return (value || "")
     .normalize("NFD")
@@ -1772,6 +1782,10 @@ const chargerCamps = async () => {
       const response = await fetch("/api/export-backup", {
         method: "POST",
         headers: await getAuthorizationHeaders(),
+        body: JSON.stringify({
+          username: currentUser?.username || username,
+          password,
+        }),
       });
       const data = await response.json();
 
@@ -8628,20 +8642,47 @@ if (page === "identityDetails" && selectedIdentity) {
 
   if (page === "rechercheGlobale") {
     const query = normaliserRecherche(globalSearch);
-    const match = (...values) =>
-      !query ||
-      normaliserRecherche(values.filter(Boolean).join(" ")).includes(query);
+    const matchObjet = (value) =>
+      !query || normaliserRecherche(texteRechercheGlobal(value)).includes(query);
+    const faitsParIdentite = (identiteId) =>
+      faitsIdentites.filter(
+        (fait) => String(fait.identite_id || fait.identiteId) === String(identiteId)
+      );
+    const vehiculesParIdentite = (identiteId) =>
+      vehicules.filter((item) => String(item.individuId) === String(identiteId));
+    const campsParIdentite = (identiteId) =>
+      camps.filter((item) => String(item.identite_id || "") === String(identiteId));
     const resultatsIdentites = query
       ? trierIdentitesParNom(
           identites.filter((person) =>
-            match(person.nom, person.prenom, person.alias, person.secteur, person.faits)
+            matchObjet({
+              ...person,
+              photos: getPhotos(person),
+              faits_detail: faitsParIdentite(person.id),
+              vehicules_lies: vehiculesParIdentite(person.id),
+              camps_lies: campsParIdentite(person.id),
+            })
           )
         )
       : [];
     const resultatsVehicules = query
       ? vehicules
           .filter((item) =>
-            match(item.marque, item.modele, item.plaque, item.couleur, item.secteur, item.faits)
+            matchObjet({
+              ...item,
+              photos: getPhotos(item),
+              identite_liee: getIdentite(identites, item.individuId),
+              camps_lies: camps.filter((camp) => {
+                const plaque = normaliserPlaque(item.plaque);
+                const texteVehiculeCamp = camp.vehicule || "";
+                return (
+                  (plaque && normaliserPlaque(texteVehiculeCamp).includes(plaque)) ||
+                  normaliserRecherche(texteVehiculeCamp).includes(
+                    normaliserRecherche(getNomVehicule(item))
+                  )
+                );
+              }),
+            })
           )
           .sort((a, b) =>
             getNomVehicule(a).localeCompare(getNomVehicule(b), "fr", {
@@ -8652,15 +8693,11 @@ if (page === "identityDetails" && selectedIdentity) {
     const resultatsCamps = query
       ? camps
           .filter((item) =>
-            match(
-              getCampCategorieLabel(item.categorie),
-              item.lieu,
-              item.adresse,
-              item.famille,
-              item.vehicule,
-              item.faits,
-              item.observations
-            )
+            matchObjet({
+              ...item,
+              categorie_label: getCampCategorieLabel(item.categorie),
+              identite_liee: getIdentite(identites, item.identite_id),
+            })
           )
           .sort((a, b) =>
             `${a.lieu || ""} ${a.adresse || ""} ${a.famille || ""}`.localeCompare(
@@ -8673,15 +8710,7 @@ if (page === "identityDetails" && selectedIdentity) {
     const resultatsNumeros = query
       ? numerosUtiles
           .filter((item) =>
-            match(
-              item.grade,
-              item.nom,
-              item.prenom,
-              item.fonction,
-              item.numero,
-              ...(Array.isArray(item.numeros) ? item.numeros : []),
-              item.observations
-            )
+            matchObjet(item)
           )
           .sort((a, b) =>
             `${a.nom || ""} ${a.prenom || ""}`.localeCompare(
@@ -8693,7 +8722,7 @@ if (page === "identityDetails" && selectedIdentity) {
       : [];
     const resultatsInterpellations = query
       ? interpellations.filter((item) =>
-          match(item.auteur, item.auteurs, item.infractions, item.type)
+          matchObjet(item)
         )
       : [];
 
@@ -8841,7 +8870,21 @@ if (page === "identityDetails" && selectedIdentity) {
               setPage("identityDetails");
             }}
           >
-            <div className="avatar">👤</div>
+            <div className="avatar">
+              {getPhotoPrincipale(person) ? (
+                <img
+                  src={getPhotoPrincipale(person)}
+                  alt="photo"
+                  className="person-photo"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPhotoZoom(getPhotoPrincipale(person));
+                  }}
+                />
+              ) : (
+                "👤"
+              )}
+            </div>
             <div className="person-info">
               <div className="person-name">{getLibelleIdentite(person)}</div>
               <div>Identité</div>

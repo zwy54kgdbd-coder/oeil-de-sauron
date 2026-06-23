@@ -14,6 +14,17 @@ as $$
   from public.users
   where auth_email = auth.jwt() ->> 'email'
      or username = split_part(auth.jwt() ->> 'email', '@', 1)
+     or username = split_part(split_part(auth.jwt() ->> 'email', '@', 1), '_', 1)
+     or (
+       auth.jwt() ->> 'email' = 'tayeb.berkouk.tbt@gmail.com'
+       and username = 'tolier'
+     )
+  order by
+    case
+      when auth_email = auth.jwt() ->> 'email' then 0
+      when username = 'tolier' then 1
+      else 2
+    end
   limit 1
 $$;
 
