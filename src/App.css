@@ -427,6 +427,66 @@ button {
   gap: 8px;
 }
 
+.vie-groupe-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.photo-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #d4af37, #8c6b16);
+  color: #050505;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.photo-upload-btn input {
+  display: none;
+}
+
+.vie-groupe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+}
+
+.vie-groupe-photo-card,
+.vie-groupe-note {
+  border: 1px solid rgba(212, 175, 55, 0.24);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.vie-groupe-photo-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 10px;
+  cursor: zoom-in;
+}
+
+.vie-groupe-meta {
+  color: #ccc;
+  font-size: 12px;
+  margin: 8px 0;
+}
+
+.vie-groupe-note {
+  margin-top: 12px;
+}
+
+.vie-groupe-note p {
+  white-space: pre-wrap;
+  margin-bottom: 0;
+}
+
 .p4-alert-card {
   display: flex;
   align-items: center;
@@ -824,6 +884,11 @@ button {
   }
 
   .photos-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vie-groupe-actions,
+  .vie-groupe-grid {
     grid-template-columns: 1fr;
   }
 

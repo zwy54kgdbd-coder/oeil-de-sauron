@@ -20,6 +20,7 @@ const tables = [
   "caisse_cafe_produits",
   "interpellations",
   "p4_conges",
+  "vie_groupe",
 ];
 
 const storageBuckets = ["photos-identites"];

@@ -555,6 +555,9 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [p4Periodes, setP4Periodes] = useState([createP4Period()]);
   const [editingP4Id, setEditingP4Id] = useState(null);
   const [editingP4Item, setEditingP4Item] = useState(null);
+  const [vieGroupeItems, setVieGroupeItems] = useState([]);
+  const [vieGroupeTexte, setVieGroupeTexte] = useState("");
+  const [editingVieGroupeId, setEditingVieGroupeId] = useState(null);
     useEffect(() => {
   if (!logged) return;
 
@@ -567,6 +570,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   chargerProduitsCaisseCafe();
   chargerInterpellations();
   chargerP4Conges();
+  chargerVieGroupe();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -703,6 +707,21 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const vieGroupeChannel = supabase
+    .channel("realtime-vie-groupe")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "vie_groupe",
+      },
+      () => {
+        chargerVieGroupe();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
@@ -713,6 +732,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     supabase.removeChannel(caisseCafeProduitsChannel);
     supabase.removeChannel(interpellationsChannel);
     supabase.removeChannel(p4CongesChannel);
+    supabase.removeChannel(vieGroupeChannel);
   };
 }, [logged]);
 
@@ -968,6 +988,20 @@ const chargerP4Conges = async () => {
   setP4Conges(data || []);
 };
 
+const chargerVieGroupe = async () => {
+  const { data, error } = await supabase
+    .from("vie_groupe")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR VIE DE GROUPE :", error);
+    return;
+  }
+
+  setVieGroupeItems(data || []);
+};
+
   const saveUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     localStorage.setItem("users", JSON.stringify(updatedUsers));
@@ -1000,6 +1034,140 @@ const chargerP4Conges = async () => {
     }
 
     await chargerJournalModifications();
+  };
+
+  const peutGererVieGroupe =
+    currentUser?.role === "LE TÔLIER" ||
+    currentUser?.role === "ADMINISTRATEUR";
+
+  const peutModifierVieGroupeItem = (item) =>
+    peutGererVieGroupe || item.created_by === currentUser?.username;
+
+  const resetVieGroupeForm = () => {
+    setVieGroupeTexte("");
+    setEditingVieGroupeId(null);
+  };
+
+  const enregistrerAnecdoteVieGroupe = async () => {
+    const texte = vieGroupeTexte.trim();
+
+    if (!texte) {
+      alert("Écris une anecdote avant d'enregistrer.");
+      return;
+    }
+
+    const payload = {
+      type: "texte",
+      contenu: texte,
+      redacteur: `${currentUser?.prenom || ""} ${currentUser?.nom || ""}`.trim() ||
+        currentUser?.username ||
+        "Inconnu",
+      created_by: currentUser?.username || "Inconnu",
+      updated_by: currentUser?.username || "Inconnu",
+    };
+    const result = editingVieGroupeId
+      ? await supabase.from("vie_groupe").update(payload).eq("id", editingVieGroupeId)
+      : await supabase.from("vie_groupe").insert([payload]);
+
+    if (result.error) {
+      alert("Erreur vie de groupe : " + result.error.message);
+      return;
+    }
+
+    await chargerVieGroupe();
+    ajouterHistorique(
+      `${editingVieGroupeId ? "Modification" : "Ajout"} anecdote vie de groupe`,
+      "vie_groupe",
+      editingVieGroupeId
+    );
+    resetVieGroupeForm();
+  };
+
+  const modifierVieGroupeItem = (item) => {
+    if (!peutModifierVieGroupeItem(item)) {
+      alert("Tu peux modifier uniquement tes souvenirs ou anecdotes.");
+      return;
+    }
+
+    setEditingVieGroupeId(item.id);
+    setVieGroupeTexte(item.contenu || "");
+  };
+
+  const supprimerVieGroupeItem = async (item) => {
+    if (!peutGererVieGroupe) {
+      alert("Seuls le Tôlier et les administrateurs peuvent supprimer.");
+      return;
+    }
+
+    const confirmation = window.confirm("Supprimer cet élément de la vie de groupe ?");
+    if (!confirmation) return;
+
+    const { error } = await supabase
+      .from("vie_groupe")
+      .delete()
+      .eq("id", item.id);
+
+    if (error) {
+      alert("Erreur suppression vie de groupe : " + error.message);
+      return;
+    }
+
+    await chargerVieGroupe();
+    ajouterHistorique(
+      `Suppression vie de groupe : ${item.type}`,
+      "vie_groupe",
+      item.id
+    );
+  };
+
+  const handleVieGroupePhoto = async (e) => {
+    const files = Array.from(e.target.files || []);
+
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      const extension = file.name.split(".").pop() || "jpg";
+      const fileName = `vie-groupe/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`;
+
+      const { error } = await supabase.storage
+        .from("photos-identites")
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (error) {
+        alert("Erreur photo vie de groupe : " + error.message);
+        continue;
+      }
+
+      const { data } = supabase.storage
+        .from("photos-identites")
+        .getPublicUrl(fileName);
+
+      const payload = {
+        type: "photo",
+        photo_url: data.publicUrl,
+        redacteur: `${currentUser?.prenom || ""} ${currentUser?.nom || ""}`.trim() ||
+          currentUser?.username ||
+          "Inconnu",
+        created_by: currentUser?.username || "Inconnu",
+        updated_by: currentUser?.username || "Inconnu",
+      };
+      const result = await supabase.from("vie_groupe").insert([payload]);
+
+      if (result.error) {
+        alert("Erreur enregistrement photo vie de groupe : " + result.error.message);
+        continue;
+      }
+
+      ajouterHistorique("Ajout photo vie de groupe", "vie_groupe");
+    }
+
+    await chargerVieGroupe();
+    e.target.value = "";
   };
 
   const basculerFavoriIdentite = async (person) => {
@@ -5374,6 +5542,119 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  if (page === "vieGroupe") {
+    const photosVieGroupe = vieGroupeItems.filter((item) => item.type === "photo");
+    const anecdotesVieGroupe = vieGroupeItems.filter((item) => item.type === "texte");
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("home")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Vie de groupe</h2>
+
+        <div className="admin-card">
+          <h3>Souvenirs photos</h3>
+
+          <div className="vie-groupe-actions">
+            <label className="photo-upload-btn">
+              Prendre une photo
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleVieGroupePhoto}
+              />
+            </label>
+
+            <label className="photo-upload-btn">
+              Galerie photo
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleVieGroupePhoto}
+              />
+            </label>
+          </div>
+
+          {photosVieGroupe.length === 0 && <p>Aucune photo souvenir.</p>}
+
+          <div className="vie-groupe-grid">
+            {photosVieGroupe.map((item) => (
+              <div className="vie-groupe-photo-card" key={item.id}>
+                <img
+                  src={item.photo_url}
+                  alt="souvenir"
+                  onClick={() => setPhotoZoom(item.photo_url)}
+                />
+                <div className="vie-groupe-meta">
+                  Ajouté par : {item.redacteur || item.created_by || "Inconnu"}
+                  <br />
+                  Le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
+                </div>
+
+                {peutGererVieGroupe && (
+                  <button className="delete-btn" onClick={() => supprimerVieGroupeItem(item)}>
+                    Supprimer
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="admin-card">
+          <h3>Cahier de doléance</h3>
+
+          <textarea
+            placeholder="Anecdote, souvenir, message..."
+            value={vieGroupeTexte}
+            onChange={(e) => setVieGroupeTexte(e.target.value)}
+          />
+
+          <button className="admin-main-btn" onClick={enregistrerAnecdoteVieGroupe}>
+            {editingVieGroupeId ? "Enregistrer modification" : "Ajouter l'anecdote"}
+          </button>
+
+          {editingVieGroupeId && (
+            <button className="cancel-btn" onClick={resetVieGroupeForm}>
+              Annuler modification
+            </button>
+          )}
+
+          {anecdotesVieGroupe.length === 0 && <p>Aucune anecdote enregistrée.</p>}
+
+          {anecdotesVieGroupe.map((item) => (
+            <div className="vie-groupe-note" key={item.id}>
+              <div>
+                <strong>{item.redacteur || item.created_by || "Inconnu"}</strong>
+                <br />
+                {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}
+                <p>{item.contenu}</p>
+              </div>
+
+              <div className="user-buttons">
+                {peutModifierVieGroupeItem(item) && (
+                  <button className="edit-btn" onClick={() => modifierVieGroupeItem(item)}>
+                    Modifier
+                  </button>
+                )}
+
+                {peutGererVieGroupe && (
+                  <button className="delete-btn" onClick={() => supprimerVieGroupeItem(item)}>
+                    Supprimer
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (page === "favorisBac") {
     const identitesFavorites = trierIdentitesParNom(
       identites.filter((person) => person.favori_bac)
@@ -5556,6 +5837,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("interpellations")}>
           🚓
           <span>Interpellations</span>
+        </div>
+
+        <div className="menu-card" onClick={() => setPage("vieGroupe")}>
+          📸
+          <span>Vie de groupe</span>
         </div>
 
         {currentUser &&
