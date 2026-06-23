@@ -199,6 +199,14 @@ function normaliserTexteIdentite(value) {
   return (value || "").trim().toLowerCase();
 }
 
+function normaliserRecherche(value) {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function normaliserP4(value) {
   return (value || "")
     .normalize("NFD")
@@ -650,6 +658,7 @@ const [nouvelleIdentiteTelephone, setNouvelleIdentiteTelephone] = useState("");
 
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
   const [recherchePhoto, setRecherchePhoto] = useState("");
   const [recherchePhotoResults, setRecherchePhotoResults] = useState([]);
   const [recherchePhotoLoading, setRecherchePhotoLoading] = useState(false);
@@ -717,6 +726,9 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [vieGroupeItems, setVieGroupeItems] = useState([]);
   const [vieGroupeOnglet, setVieGroupeOnglet] = useState("photos");
   const [vieGroupePhotoTitre, setVieGroupePhotoTitre] = useState("");
+  const [documentTitre, setDocumentTitre] = useState("");
+  const [documentDescription, setDocumentDescription] = useState("");
+  const [backupLoading, setBackupLoading] = useState(false);
   const [editingVieGroupePhotoId, setEditingVieGroupePhotoId] = useState(null);
   const [vieGroupeTexte, setVieGroupeTexte] = useState("");
   const [editingVieGroupeId, setEditingVieGroupeId] = useState(null);
@@ -1677,6 +1689,111 @@ const chargerCamps = async () => {
   const resetVieGroupePhotoForm = () => {
     setVieGroupePhotoTitre("");
     setEditingVieGroupePhotoId(null);
+  };
+
+  const handleDocumentVieGroupe = async (e) => {
+    const files = Array.from(e.target.files || []);
+
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      const extension = file.name.split(".").pop() || "dat";
+      const fileName = `documents/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`;
+
+      const { error } = await supabase.storage
+        .from("photos-identites")
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type || "application/octet-stream",
+        });
+
+      if (error) {
+        alert("Erreur document : " + error.message);
+        continue;
+      }
+
+      const { data } = supabase.storage
+        .from("photos-identites")
+        .getPublicUrl(fileName);
+
+      const payload = {
+        type: "document",
+        titre: documentTitre.trim() || file.name,
+        contenu: documentDescription.trim(),
+        photo_url: data.publicUrl,
+        redacteur:
+          `${currentUser?.prenom || ""} ${currentUser?.nom || ""}`.trim() ||
+          currentUser?.username ||
+          "Inconnu",
+        created_by: currentUser?.username || "Inconnu",
+        updated_by: currentUser?.username || "Inconnu",
+      };
+
+      let result = await supabase.from("vie_groupe").insert([payload]);
+
+      if (result.error && isVieGroupeTitreColumnMissing(result.error)) {
+        result = await supabase
+          .from("vie_groupe")
+          .insert([removeVieGroupeTitre(payload)]);
+      }
+
+      if (result.error) {
+        alert("Erreur enregistrement document : " + result.error.message);
+        continue;
+      }
+
+      ajouterHistorique("Ajout document vie de groupe", "vie_groupe");
+    }
+
+    setDocumentTitre("");
+    setDocumentDescription("");
+    await chargerVieGroupe();
+    e.target.value = "";
+  };
+
+  const exporterSauvegardeAdministration = async () => {
+    if (currentUser?.role !== "LE TÔLIER") {
+      alert("Seul le Tôlier peut exporter une sauvegarde.");
+      return;
+    }
+
+    setBackupLoading(true);
+
+    try {
+      const response = await fetch("/api/export-backup", {
+        method: "POST",
+        headers: await getAuthorizationHeaders(),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert("Erreur sauvegarde : " + (data.error || "export impossible"));
+        return;
+      }
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `sauvegarde-oeil-de-sauron-${new Date()
+        .toISOString()
+        .slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      localStorage.setItem("lastAdminBackupExport", new Date().toISOString());
+      ajouterHistorique("Export sauvegarde administration", "sauvegarde");
+    } catch (error) {
+      alert("Erreur sauvegarde : " + error.message);
+    } finally {
+      setBackupLoading(false);
+    }
   };
 
   const enregistrerAnecdoteVieGroupe = async () => {
@@ -2778,11 +2895,16 @@ const chargerCamps = async () => {
   };
 
   const supprimerNotification = async (notification) => {
+    if (notification.type !== "p4") {
+      masquerNotification(notification.key);
+      return;
+    }
+
     const supprimerDansRubrique = window.confirm(
       "OK : supprimer aussi dans la rubrique concernée.\nAnnuler : supprimer uniquement cette notification."
     );
 
-    if (supprimerDansRubrique && notification.type === "p4") {
+    if (supprimerDansRubrique) {
       await supprimerP4Conge(notification.item, false);
       return;
     }
@@ -4531,6 +4653,19 @@ if (page === "identityDetails" && selectedIdentity) {
   const vehiculesLies = vehicules.filter(
     (item) => String(item.individuId) === String(person.id)
   );
+  const nomCompletPersonne = normaliserRecherche(
+    `${person.nom || ""} ${person.prenom || ""}`.trim()
+  );
+  const campsLies = camps.filter(
+    (item) => String(item.identite_id || "") === String(person.id)
+  );
+  const interpellationsLiees = nomCompletPersonne
+    ? interpellations.filter((item) =>
+        normaliserRecherche(`${item.auteur || ""} ${item.auteurs || ""}`).includes(
+          nomCompletPersonne
+        )
+      )
+    : [];
 
   return (
     <div className="home-page">
@@ -4581,6 +4716,33 @@ if (page === "identityDetails" && selectedIdentity) {
       </div>
 
       {renderHistoriqueFaitsIdentite(person.id)}
+
+      <div className="admin-card">
+        <h3>Liens dossier</h3>
+
+        {campsLies.length === 0 && interpellationsLiees.length === 0 && (
+          <p>Aucun camp ou interpellation lié.</p>
+        )}
+
+        {campsLies.length > 0 && <div className="person-alias">Camps liés</div>}
+        {campsLies.map((item) => (
+          <div className="linked-identity" key={`camp-${item.id}`}>
+            {getCampCategorieLabel(item.categorie)} :{" "}
+            {item.lieu || item.adresse || item.famille || "Camp sans lieu"}
+          </div>
+        ))}
+
+        {interpellationsLiees.length > 0 && (
+          <div className="person-alias">Interpellations liées</div>
+        )}
+        {interpellationsLiees.map((item) => (
+          <div className="linked-identity" key={`interpellation-${item.id}`}>
+            {formatDateFr(item.date_interpellation)} :{" "}
+            {item.infractions || "Interpellation"} -{" "}
+            {item.nombre_interpelles || 0} interpellé(s)
+          </div>
+        ))}
+      </div>
 
       <div className="admin-card">
         <h3>Véhicules liés</h3>
@@ -4759,6 +4921,12 @@ if (page === "identityDetails" && selectedIdentity) {
   }
 
   if (page === "vehicules") {
+    const vehiculesTries = [...vehicules].sort((a, b) =>
+      getNomVehicule(a).localeCompare(getNomVehicule(b), "fr", {
+        sensitivity: "base",
+      })
+    );
+
     return (
       <div className="home-page">
         <button className="back-btn" onClick={() => setPage("home")}>
@@ -4782,7 +4950,7 @@ if (page === "identityDetails" && selectedIdentity) {
             <div className="admin-card">Aucun véhicule enregistré.</div>
           )}
 
-          {vehicules.map((item) => (
+          {vehiculesTries.map((item) => (
             <div
               className="person-card"
               key={item.id}
@@ -4894,6 +5062,16 @@ if (page === "identityDetails" && selectedIdentity) {
     const vehiculePhotosSecondaires = vehiculePhotosDetails.filter(
       (photoItem) => photoItem !== vehiculePhotoPrincipale
     );
+    const plaqueVehicule = normaliserPlaque(item.plaque);
+    const nomVehiculeClean = normaliserRecherche(getNomVehicule(item));
+    const campsLiesVehicule = camps.filter((camp) => {
+      const vehiculeCamp = camp.vehicule || "";
+      return (
+        (plaqueVehicule && normaliserPlaque(vehiculeCamp).includes(plaqueVehicule)) ||
+        (nomVehiculeClean &&
+          normaliserRecherche(vehiculeCamp).includes(nomVehiculeClean))
+      );
+    });
 
     return (
       <div className="home-page">
@@ -4974,6 +5152,17 @@ if (page === "identityDetails" && selectedIdentity) {
             </div>
           </div>
         )}
+
+        <div className="admin-card">
+          <h3>Camps liés</h3>
+          {campsLiesVehicule.length === 0 && <p>Aucun camp lié à ce véhicule.</p>}
+          {campsLiesVehicule.map((camp) => (
+            <div className="linked-identity" key={`camp-vehicule-${camp.id}`}>
+              {getCampCategorieLabel(camp.categorie)} :{" "}
+              {camp.lieu || camp.adresse || camp.famille || "Camp sans lieu"}
+            </div>
+          ))}
+        </div>
 
         <div className="person-actions">
           <button className="edit-btn" onClick={() => basculerFavoriVehicule(item)}>
@@ -5582,6 +5771,16 @@ if (page === "identityDetails" && selectedIdentity) {
     currentUser.role === "ADMINISTRATEUR"
   )
 ) {
+    const lastBackupExport = localStorage.getItem("lastAdminBackupExport");
+    const backupExportDate = lastBackupExport ? new Date(lastBackupExport) : null;
+    const backupAlertMensuelle =
+      currentUser.role === "LE TÔLIER" &&
+      (
+        !backupExportDate ||
+        backupExportDate.getMonth() !== new Date().getMonth() ||
+        backupExportDate.getFullYear() !== new Date().getFullYear()
+      );
+
     return (
       <div className="home-page">
         <button className="back-btn" onClick={() => setPage("home")}>
@@ -5589,6 +5788,13 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
 
         <h2 className="section-title">Administration</h2>
+
+        {backupAlertMensuelle && (
+          <div className="admin-card current-month-card">
+            <h3>Sauvegarde mensuelle</h3>
+            <p>Une sauvegarde complète n'a pas encore été exportée ce mois-ci.</p>
+          </div>
+        )}
 
         {currentUser && currentUser.role === "LE TÔLIER" && (
           <div className="admin-buttons">
@@ -5604,6 +5810,14 @@ if (page === "identityDetails" && selectedIdentity) {
               onClick={() => setPage("historique")}
             >
               Historique
+            </button>
+
+            <button
+              className="admin-main-btn"
+              onClick={exporterSauvegardeAdministration}
+              disabled={backupLoading}
+            >
+              {backupLoading ? "Export en cours..." : "Exporter sauvegarde"}
             </button>
           </div>
         )}
@@ -6874,9 +7088,16 @@ if (page === "identityDetails" && selectedIdentity) {
     const peutSupprimerCamp =
       currentUser?.role === "LE TÔLIER" ||
       currentUser?.role === "ADMINISTRATEUR";
-    const campsCategorie = selectedCampCategory
+    const campsCategorie = (selectedCampCategory
       ? camps.filter((item) => item.categorie === selectedCampCategory)
-      : [];
+      : []
+    ).sort((a, b) =>
+      `${a.lieu || ""} ${a.adresse || ""} ${a.famille || ""}`.localeCompare(
+        `${b.lieu || ""} ${b.adresse || ""} ${b.famille || ""}`,
+        "fr",
+        { sensitivity: "base" }
+      )
+    );
 
     if (!selectedCampCategory) {
       return (
@@ -7202,6 +7423,11 @@ if (page === "identityDetails" && selectedIdentity) {
           <div className="menu-card" onClick={() => setPage("quotidien")}>
             📸
             <span>Quotidien</span>
+          </div>
+
+          <div className="menu-card" onClick={() => setPage("documentsVieGroupe")}>
+            📄
+            <span>Documents</span>
           </div>
 
           {Object.entries(VIE_GROUPE_MODULES).map(([key, module]) => (
@@ -7704,6 +7930,76 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  if (page === "documentsVieGroupe") {
+    const documentsVieGroupe = vieGroupeItems.filter((item) => item.type === "document");
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("vieGroupe")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Documents</h2>
+
+        <div className="admin-card">
+          <h3>Ajouter un document</h3>
+
+          <input
+            type="text"
+            placeholder="Titre du document"
+            value={documentTitre}
+            onChange={(e) => setDocumentTitre(e.target.value)}
+          />
+
+          <textarea
+            placeholder="Description"
+            value={documentDescription}
+            onChange={(e) => setDocumentDescription(e.target.value)}
+          />
+
+          <label className="photo-upload-btn">
+            Ajouter depuis les fichiers
+            <input
+              type="file"
+              multiple
+              onChange={handleDocumentVieGroupe}
+            />
+          </label>
+        </div>
+
+        <div className="admin-card">
+          <h3>Documents enregistrés</h3>
+          {documentsVieGroupe.length === 0 && <p>Aucun document enregistré.</p>}
+
+          {documentsVieGroupe.map((item) => (
+            <div className="user-line" key={item.id}>
+              <div>
+                <strong>{getVieGroupeTitre(item) || "Document"}</strong>
+                <br />
+                {item.contenu && <span>{item.contenu}<br /></span>}
+                Ajouté par : {item.redacteur || item.created_by || "Inconnu"} le{" "}
+                {formatDateFr(item.created_at)}
+              </div>
+
+              <div className="user-buttons">
+                {item.photo_url && (
+                  <a className="edit-btn file-link-button" href={item.photo_url} target="_blank" rel="noreferrer">
+                    Ouvrir
+                  </a>
+                )}
+                {peutGererVieGroupe && (
+                  <button className="delete-btn" onClick={() => supprimerVieGroupeItem(item)}>
+                    Supprimer
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (page === "quotidien") {
     const photosVieGroupe = vieGroupeItems.filter((item) => item.type === "photo");
     const anecdotesVieGroupe = vieGroupeItems.filter((item) => item.type === "texte");
@@ -7996,7 +8292,7 @@ if (page === "identityDetails" && selectedIdentity) {
   const peutVoirAlertesAccueil =
     currentUser?.role === "LE TÔLIER" ||
     currentUser?.role === "ADMINISTRATEUR";
-  const notificationsATraiter = p4Conges
+  const notificationsP4 = p4Conges
     .filter((item) =>
       (getP4Nature(item) === "demande" && item.statut === "demande") ||
       (getP4Nature(item) === "previsionnel" && item.statut === "previsionnel")
@@ -8009,7 +8305,23 @@ if (page === "identityDetails" && selectedIdentity) {
           ? "Prévisionnel P4 à contrôler"
           : "Demande de congé P4 à valider",
       item,
-    }))
+    }));
+  const notificationsHabilitations = vieGroupeDossiers
+    .filter((item) => item.type === "habilitations" && item.data?.echeance)
+    .filter((item) =>
+      ["echeance-orange", "echeance-rouge"].includes(
+        getClasseEcheanceVieGroupe(item.data.echeance)
+      )
+    )
+    .map((item) => ({
+      key: `habilitation-${item.id}`,
+      type: "habilitation",
+      titre: getClasseEcheanceVieGroupe(item.data.echeance) === "echeance-rouge"
+        ? "Habilitation urgente"
+        : "Habilitation bientôt expirée",
+      item,
+    }));
+  const notificationsATraiter = [...notificationsP4, ...notificationsHabilitations]
     .filter((notification) => !notificationsMasquees.includes(notification.key));
 
   if (page === "aTraiter" && peutVoirAlertesAccueil) {
@@ -8028,6 +8340,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
           {notificationsATraiter.map((notification) => {
             const item = notification.item;
+            const isP4Notification = notification.type === "p4";
 
             return (
               <div className="person-card" key={notification.key}>
@@ -8035,23 +8348,40 @@ if (page === "identityDetails" && selectedIdentity) {
 
                 <div className="person-info">
                   <div className="person-name">{notification.titre}</div>
-                  <div>Collègue : {getP4CollegueLabel(item.collegue)}</div>
-                  <div>Type : {getP4TypeCourt(item.type)}</div>
-                  <div>
-                    Période : {formatDateFr(item.date_debut)} au{" "}
-                    {formatDateFr(item.date_fin || item.date_debut)}
-                  </div>
-                  <div>Nature : {getP4NatureLabel(item)}</div>
-                  <div>Demandé le : {formatDateFr(item.created_at)} à {formatHeureFr(item.created_at)}</div>
-                  {item.commentaire && <div>Commentaire : {item.commentaire}</div>}
+                  {isP4Notification ? (
+                    <>
+                      <div>Collègue : {getP4CollegueLabel(item.collegue)}</div>
+                      <div>Type : {getP4TypeCourt(item.type)}</div>
+                      <div>
+                        Période : {formatDateFr(item.date_debut)} au{" "}
+                        {formatDateFr(item.date_fin || item.date_debut)}
+                      </div>
+                      <div>Nature : {getP4NatureLabel(item)}</div>
+                      <div>
+                        Demandé le : {formatDateFr(item.created_at)} à{" "}
+                        {formatHeureFr(item.created_at)}
+                      </div>
+                      {item.commentaire && <div>Commentaire : {item.commentaire}</div>}
+                    </>
+                  ) : (
+                    <>
+                      <div>Collègue : {item.collegue}</div>
+                      <div>
+                        Habilitation : {item.data?.element_nom || "Non renseignée"}
+                      </div>
+                      <div>Validité : {formatDateFr(item.data?.echeance)}</div>
+                    </>
+                  )}
 
                   <div className="person-actions">
-                    <button
-                      className="edit-btn"
-                      onClick={() => changerStatutP4Conge(item, "valide")}
-                    >
-                      Valider
-                    </button>
+                    {isP4Notification && (
+                      <button
+                        className="edit-btn"
+                        onClick={() => changerStatutP4Conge(item, "valide")}
+                      >
+                        Valider
+                      </button>
+                    )}
 
                     <button
                       className="delete-btn"
@@ -8060,8 +8390,20 @@ if (page === "identityDetails" && selectedIdentity) {
                       Supprimer notification
                     </button>
 
-                    <button className="cancel-btn" onClick={() => setPage("p4")}>
-                      Ouvrir P4
+                    <button
+                      className="cancel-btn"
+                      onClick={() => {
+                        if (isP4Notification) {
+                          setPage("p4");
+                          return;
+                        }
+
+                        setSelectedVieGroupeModule("habilitations");
+                        setSelectedVieGroupeCollegue(item.collegue);
+                        setPage("vieGroupeDossier");
+                      }}
+                    >
+                      {isP4Notification ? "Ouvrir P4" : "Ouvrir la fiche"}
                     </button>
                   </div>
                 </div>
@@ -8069,6 +8411,181 @@ if (page === "identityDetails" && selectedIdentity) {
             );
           })}
         </div>
+      </div>
+    );
+  }
+
+  if (page === "rechercheGlobale") {
+    const query = normaliserRecherche(globalSearch);
+    const match = (...values) =>
+      !query ||
+      normaliserRecherche(values.filter(Boolean).join(" ")).includes(query);
+    const resultatsIdentites = query
+      ? trierIdentitesParNom(
+          identites.filter((person) =>
+            match(person.nom, person.prenom, person.alias, person.secteur, person.faits)
+          )
+        )
+      : [];
+    const resultatsVehicules = query
+      ? vehicules
+          .filter((item) =>
+            match(item.marque, item.modele, item.plaque, item.couleur, item.secteur, item.faits)
+          )
+          .sort((a, b) =>
+            getNomVehicule(a).localeCompare(getNomVehicule(b), "fr", {
+              sensitivity: "base",
+            })
+          )
+      : [];
+    const resultatsCamps = query
+      ? camps
+          .filter((item) =>
+            match(
+              getCampCategorieLabel(item.categorie),
+              item.lieu,
+              item.adresse,
+              item.famille,
+              item.vehicule,
+              item.faits,
+              item.observations
+            )
+          )
+          .sort((a, b) =>
+            `${a.lieu || ""} ${a.adresse || ""} ${a.famille || ""}`.localeCompare(
+              `${b.lieu || ""} ${b.adresse || ""} ${b.famille || ""}`,
+              "fr",
+              { sensitivity: "base" }
+            )
+          )
+      : [];
+    const resultatsNumeros = query
+      ? numerosUtiles
+          .filter((item) =>
+            match(
+              item.grade,
+              item.nom,
+              item.prenom,
+              item.fonction,
+              item.numero,
+              ...(Array.isArray(item.numeros) ? item.numeros : []),
+              item.observations
+            )
+          )
+          .sort((a, b) =>
+            `${a.nom || ""} ${a.prenom || ""}`.localeCompare(
+              `${b.nom || ""} ${b.prenom || ""}`,
+              "fr",
+              { sensitivity: "base" }
+            )
+          )
+      : [];
+    const resultatsInterpellations = query
+      ? interpellations.filter((item) =>
+          match(item.auteur, item.auteurs, item.infractions, item.type)
+        )
+      : [];
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("home")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Recherche globale</h2>
+
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Nom, plaque, secteur, camp, numéro, fait..."
+          value={globalSearch}
+          onChange={(e) => setGlobalSearch(e.target.value)}
+        />
+
+        {!query && <div className="admin-card">Renseigne une recherche.</div>}
+
+        {query && (
+          <div className="admin-card">
+            <h3>Résultats</h3>
+            <p>
+              {resultatsIdentites.length} identité(s) / {resultatsVehicules.length} véhicule(s) /{" "}
+              {resultatsCamps.length} camp(s) / {resultatsNumeros.length} numéro(s) /{" "}
+              {resultatsInterpellations.length} interpellation(s)
+            </p>
+          </div>
+        )}
+
+        {resultatsIdentites.map((person) => (
+          <div
+            className="person-card"
+            key={`identite-${person.id}`}
+            onClick={() => {
+              setSelectedIdentity(person);
+              setIdentityDetailsReturnPage("rechercheGlobale");
+              setPage("identityDetails");
+            }}
+          >
+            <div className="avatar">👤</div>
+            <div className="person-info">
+              <div className="person-name">{getLibelleIdentite(person)}</div>
+              <div>Identité</div>
+            </div>
+          </div>
+        ))}
+
+        {resultatsVehicules.map((item) => (
+          <div
+            className="person-card"
+            key={`vehicule-${item.id}`}
+            onClick={() => {
+              setSelectedVehicle(item);
+              setVehicleDetailsReturnPage("rechercheGlobale");
+              setPage("vehicleDetails");
+            }}
+          >
+            <div className="avatar">🚗</div>
+            <div className="person-info">
+              <div className="person-name">{getNomVehicule(item)}</div>
+              <div>Véhicule</div>
+            </div>
+          </div>
+        ))}
+
+        {resultatsCamps.map((item) => (
+          <div className="person-card" key={`camp-${item.id}`}>
+            <div className="avatar">🏕️</div>
+            <div className="person-info">
+              <div className="person-name">{item.lieu || item.adresse || "Camp"}</div>
+              <div>Camp : {getCampCategorieLabel(item.categorie)}</div>
+              {item.adresse && <div>Adresse : {item.adresse}</div>}
+              {item.famille && <div>Famille : {item.famille}</div>}
+            </div>
+          </div>
+        ))}
+
+        {resultatsNumeros.map((item) => (
+          <div className="person-card" key={`numero-${item.id}`}>
+            <div className="avatar">☎️</div>
+            <div className="person-info">
+              <div className="person-name">{[item.grade, item.nom, item.prenom].filter(Boolean).join(" ")}</div>
+              <div>Numéro utile : {item.fonction}</div>
+              {(Array.isArray(item.numeros) ? item.numeros : [item.numero]).filter(Boolean).map((numero, index) => (
+                <div key={index}>{numero}</div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {resultatsInterpellations.map((item) => (
+          <div className="person-card" key={`interpellation-${item.id}`}>
+            <div className="avatar">🚓</div>
+            <div className="person-info">
+              <div className="person-name">{item.infractions || "Interpellation"}</div>
+              <div>{formatDateFr(item.date_interpellation)} - {item.nombre_interpelles || 0} interpellé(s)</div>
+              {item.auteurs && <div>Auteurs : {item.auteurs}</div>}
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -8103,6 +8620,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("search")}>
           🔍
           <span>Recherche</span>
+        </div>
+
+        <div className="menu-card" onClick={() => setPage("rechercheGlobale")}>
+          🧭
+          <span>Recherche globale</span>
         </div>
 
         <div className="menu-card" onClick={() => setPage("add")}>
