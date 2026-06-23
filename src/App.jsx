@@ -1558,6 +1558,22 @@ const chargerVieGroupeDossiers = async () => {
     setPage("add");
   };
 
+  const ignorerIdentiteAuteurInterpellation = () => {
+    const auteur = getLibelleIdentite({ nom, prenom, alias });
+
+    if (!auteur || auteur === "Identité sans nom") {
+      alert("Renseigne au moins le nom ou le prénom de l'auteur.");
+      return;
+    }
+
+    setInterpellationAuteurs((auteurs) => [
+      ...new Set([...auteurs, auteur]),
+    ]);
+    setRetourIdentiteInterpellation(false);
+    resetIdentityForm();
+    setPage("interpellations");
+  };
+
   const supprimerAuteurInterpellation = (index) => {
     setInterpellationAuteurs((auteurs) =>
       auteurs.filter((_, auteurIndex) => auteurIndex !== index)
@@ -4610,6 +4626,16 @@ if (page === "identityDetails" && selectedIdentity) {
               />
             </label>
           </div>
+
+          {retourIdentiteInterpellation && (
+            <button
+              className="edit-btn"
+              type="button"
+              onClick={ignorerIdentiteAuteurInterpellation}
+            >
+              Ignorer la création d'identité
+            </button>
+          )}
 
           <button className="save-btn" onClick={enregistrerIdentite}>
             {editingId ? "Modifier" : "Enregistrer"}
