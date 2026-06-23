@@ -6,6 +6,11 @@ import { supabase } from "./supabase";
 const initialUsers = [];
 
 const CREATE_NEW_IDENTITY = "__CREATE_NEW_IDENTITY__";
+const CAMP_CATEGORIES = [
+  { key: "gens_voyage", label: "Gens du voyage", icon: "🚐" },
+  { key: "roumains", label: "Roumains", icon: "🏕️" },
+  { key: "squatte", label: "Squatte", icon: "🏚️" },
+];
 const COLLEGUES_CAISSE_CAFE = [
   "Cedric",
   "Benjamin",
@@ -718,6 +723,17 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [numeroUtileFonction, setNumeroUtileFonction] = useState("");
   const [numeroUtileNumeros, setNumeroUtileNumeros] = useState([""]);
   const [numeroUtileObservations, setNumeroUtileObservations] = useState("");
+  const [camps, setCamps] = useState([]);
+  const [selectedCampCategory, setSelectedCampCategory] = useState("");
+  const [editingCampId, setEditingCampId] = useState(null);
+  const [campLieu, setCampLieu] = useState("");
+  const [campAdresse, setCampAdresse] = useState("");
+  const [campFamille, setCampFamille] = useState("");
+  const [campIdentiteId, setCampIdentiteId] = useState("");
+  const [campVehicule, setCampVehicule] = useState("");
+  const [campFaits, setCampFaits] = useState("");
+  const [campObservations, setCampObservations] = useState("");
+  const [retourIdentiteCamp, setRetourIdentiteCamp] = useState(false);
   const [selectedVieGroupeModule, setSelectedVieGroupeModule] = useState(null);
   const [selectedVieGroupeCollegue, setSelectedVieGroupeCollegue] = useState("");
   const [editingVieGroupeDossierId, setEditingVieGroupeDossierId] = useState(null);
@@ -745,6 +761,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   chargerVieGroupeOptions();
   chargerCaisseCafeRappels();
   chargerNumerosUtiles();
+  chargerCamps();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -956,6 +973,21 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const campsChannel = supabase
+    .channel("realtime-camps")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "camps",
+      },
+      () => {
+        chargerCamps();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
@@ -971,6 +1003,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     supabase.removeChannel(vieGroupeOptionsChannel);
     supabase.removeChannel(caisseCafeRappelsChannel);
     supabase.removeChannel(numerosUtilesChannel);
+    supabase.removeChannel(campsChannel);
   };
 }, [logged]);
 
@@ -1303,6 +1336,21 @@ const chargerNumerosUtiles = async () => {
   setNumerosUtiles(data || []);
 };
 
+const chargerCamps = async () => {
+  const { data, error } = await supabase
+    .from("camps")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR CAMPS :", error);
+    setCamps([]);
+    return;
+  }
+
+  setCamps(data || []);
+};
+
   const saveUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     localStorage.setItem("users", JSON.stringify(updatedUsers));
@@ -1447,6 +1495,110 @@ const chargerNumerosUtiles = async () => {
     ajouterHistorique(
       `Suppression numéro utile : ${item.grade || ""} ${item.nom || ""} ${item.prenom || ""}`.trim(),
       "numeros_utiles",
+      item.id
+    );
+  };
+
+  const getCampCategorieLabel = (key) =>
+    CAMP_CATEGORIES.find((item) => item.key === key)?.label || key;
+
+  const resetCampForm = () => {
+    setEditingCampId(null);
+    setCampLieu("");
+    setCampAdresse("");
+    setCampFamille("");
+    setCampIdentiteId("");
+    setCampVehicule("");
+    setCampFaits("");
+    setCampObservations("");
+  };
+
+  const modifierCamp = (item) => {
+    setEditingCampId(item.id);
+    setCampLieu(item.lieu || "");
+    setCampAdresse(item.adresse || "");
+    setCampFamille(item.famille || "");
+    setCampIdentiteId(item.identite_id ? String(item.identite_id) : "");
+    setCampVehicule(item.vehicule || "");
+    setCampFaits(item.faits || "");
+    setCampObservations(item.observations || "");
+  };
+
+  const creerIdentitePourCamp = () => {
+    setRetourIdentiteCamp(true);
+    resetIdentityForm();
+    setPage("add");
+  };
+
+  const enregistrerCamp = async () => {
+    if (!selectedCampCategory) {
+      alert("Choisis une catégorie.");
+      return;
+    }
+
+    if (!campLieu.trim() && !campAdresse.trim() && !campFamille.trim()) {
+      alert("Renseigne au moins le lieu, l'adresse ou la famille.");
+      return;
+    }
+
+    const payload = {
+      categorie: selectedCampCategory,
+      lieu: campLieu.trim(),
+      adresse: campAdresse.trim(),
+      famille: campFamille.trim(),
+      identite_id: campIdentiteId || null,
+      vehicule: campVehicule.trim(),
+      faits: campFaits.trim(),
+      observations: campObservations.trim(),
+      updated_by: currentUser?.username || "Inconnu",
+    };
+
+    const result = editingCampId
+      ? await supabase.from("camps").update(payload).eq("id", editingCampId)
+      : await supabase.from("camps").insert([
+          {
+            ...payload,
+            created_by: currentUser?.username || "Inconnu",
+          },
+        ]);
+
+    if (result.error) {
+      alert("Erreur camp : " + result.error.message);
+      return;
+    }
+
+    await chargerCamps();
+    ajouterHistorique(
+      `${editingCampId ? "Modification" : "Ajout"} camp ${getCampCategorieLabel(selectedCampCategory)} : ${campLieu || campAdresse || campFamille}`,
+      "camps",
+      editingCampId
+    );
+    resetCampForm();
+  };
+
+  const supprimerCamp = async (item) => {
+    if (
+      currentUser?.role !== "LE TÔLIER" &&
+      currentUser?.role !== "ADMINISTRATEUR"
+    ) {
+      alert("Seuls le Tôlier et les administrateurs peuvent supprimer.");
+      return;
+    }
+
+    const confirmation = window.confirm("Supprimer cette fiche camp ?");
+    if (!confirmation) return;
+
+    const { error } = await supabase.from("camps").delete().eq("id", item.id);
+
+    if (error) {
+      alert("Erreur suppression camp : " + error.message);
+      return;
+    }
+
+    await chargerCamps();
+    ajouterHistorique(
+      `Suppression camp ${getCampCategorieLabel(item.categorie)} : ${item.lieu || item.adresse || item.famille}`,
+      "camps",
       item.id
     );
   };
@@ -3325,6 +3477,14 @@ telephone,
     return;
   }
 
+  if (retourIdentiteCamp) {
+    setCampIdentiteId(identiteId ? String(identiteId) : "");
+    setRetourIdentiteCamp(false);
+    resetIdentityForm();
+    setPage("camps");
+    return;
+  }
+
   resetIdentityForm();
   setPage("search");
 };
@@ -5160,6 +5320,13 @@ if (page === "identityDetails" && selectedIdentity) {
               return;
             }
 
+            if (retourIdentiteCamp) {
+              setRetourIdentiteCamp(false);
+              resetIdentityForm();
+              setPage("camps");
+              return;
+            }
+
             resetIdentityForm();
             setPage("home");
           }}
@@ -6644,6 +6811,179 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  if (page === "camps") {
+    const peutSupprimerCamp =
+      currentUser?.role === "LE TÔLIER" ||
+      currentUser?.role === "ADMINISTRATEUR";
+    const campsCategorie = selectedCampCategory
+      ? camps.filter((item) => item.categorie === selectedCampCategory)
+      : [];
+
+    if (!selectedCampCategory) {
+      return (
+        <div className="home-page">
+          <button className="back-btn" onClick={() => setPage("home")}>
+            ← Retour
+          </button>
+
+          <h2 className="section-title">Camps</h2>
+
+          <div className="menu-grid">
+            {CAMP_CATEGORIES.map((categorie) => (
+              <div
+                className="menu-card"
+                key={categorie.key}
+                onClick={() => {
+                  setSelectedCampCategory(categorie.key);
+                  resetCampForm();
+                }}
+              >
+                {categorie.icon}
+                <span>{categorie.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="home-page">
+        <button
+          className="back-btn"
+          onClick={() => {
+            resetCampForm();
+            setSelectedCampCategory("");
+          }}
+        >
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Camps - {getCampCategorieLabel(selectedCampCategory)}</h2>
+
+        <div className="admin-card">
+          <h3>{editingCampId ? "Modifier" : "Ajouter"}</h3>
+
+          <input
+            type="text"
+            placeholder="Lieu"
+            value={campLieu}
+            onChange={(e) => setCampLieu(e.target.value)}
+          />
+
+          <input
+            type="text"
+            placeholder="Adresse"
+            value={campAdresse}
+            onChange={(e) => setCampAdresse(e.target.value)}
+          />
+
+          <input
+            type="text"
+            placeholder="Famille"
+            value={campFamille}
+            onChange={(e) => setCampFamille(e.target.value)}
+          />
+
+          <select
+            className="role-select"
+            value={campIdentiteId}
+            onChange={(e) => setCampIdentiteId(e.target.value)}
+          >
+            <option value="">Aucune identité liée</option>
+            {trierIdentitesParNom(identites).map((person) => (
+              <option key={person.id} value={person.id}>
+                {getLibelleIdentite(person)}
+              </option>
+            ))}
+          </select>
+
+          <button className="edit-btn" type="button" onClick={creerIdentitePourCamp}>
+            Créer une identité complète
+          </button>
+
+          <input
+            type="text"
+            placeholder="Véhicule"
+            value={campVehicule}
+            onChange={(e) => setCampVehicule(e.target.value)}
+          />
+
+          <textarea
+            placeholder="Faits principaux"
+            value={campFaits}
+            onChange={(e) => setCampFaits(e.target.value)}
+          />
+
+          <textarea
+            placeholder="Observations"
+            value={campObservations}
+            onChange={(e) => setCampObservations(e.target.value)}
+          />
+
+          <button className="admin-main-btn" onClick={enregistrerCamp}>
+            {editingCampId ? "Enregistrer modification" : "Ajouter"}
+          </button>
+
+          {editingCampId && (
+            <button className="cancel-btn" onClick={resetCampForm}>
+              Annuler modification
+            </button>
+          )}
+        </div>
+
+        <div className="results-list">
+          {campsCategorie.length === 0 && (
+            <div className="admin-card">Aucun camp enregistré.</div>
+          )}
+
+          {campsCategorie.map((item) => {
+            const identiteLiee = getIdentite(identites, item.identite_id);
+
+            return (
+              <div className="person-card" key={item.id}>
+                <div className="avatar">🏕️</div>
+
+                <div className="person-info">
+                  <div className="person-name">{item.lieu || item.adresse || "Camp sans lieu"}</div>
+                  {item.adresse && <div>Adresse : {item.adresse}</div>}
+                  {item.famille && <div>Famille : {item.famille}</div>}
+                  {identiteLiee && (
+                    <div
+                      className="linked-identity"
+                      onClick={() => {
+                        setSelectedIdentity(identiteLiee);
+                        setIdentityDetailsReturnPage("camps");
+                        setPage("identityDetails");
+                      }}
+                    >
+                      Identité : {getLibelleIdentite(identiteLiee)}
+                    </div>
+                  )}
+                  {item.vehicule && <div>Véhicule : {item.vehicule}</div>}
+                  {item.faits && <div>Faits principaux : {item.faits}</div>}
+                  {item.observations && <div>Observations : {item.observations}</div>}
+
+                  <div className="person-actions">
+                    <button className="edit-btn" onClick={() => modifierCamp(item)}>
+                      Modifier
+                    </button>
+
+                    {peutSupprimerCamp && (
+                      <button className="delete-btn" onClick={() => supprimerCamp(item)}>
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   if (page === "numerosUtiles") {
     const peutSupprimerNumeroUtile =
       currentUser?.role === "LE TÔLIER" ||
@@ -7731,6 +8071,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("interpellations")}>
           🚓
           <span>Interpellations</span>
+        </div>
+
+        <div className="menu-card" onClick={() => setPage("camps")}>
+          🏕️
+          <span>Camps</span>
         </div>
 
         <div className="menu-card" onClick={() => setPage("numerosUtiles")}>
