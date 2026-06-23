@@ -470,6 +470,12 @@ button {
   gap: 8px;
 }
 
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .vie-groupe-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -532,6 +538,16 @@ button {
   margin-top: 12px;
 }
 
+.vie-groupe-note.echeance-orange {
+  background: rgba(220, 120, 20, 0.18);
+  border-color: rgba(255, 155, 45, 0.85);
+}
+
+.vie-groupe-note.echeance-rouge {
+  background: rgba(150, 25, 25, 0.26);
+  border-color: rgba(255, 65, 65, 0.9);
+}
+
 .vie-groupe-note-meta {
   color: #aaa;
   font-size: 12px;
@@ -558,6 +574,42 @@ button {
   color: #d4af37;
   display: block;
   margin-bottom: 4px;
+}
+
+.cafe-reminder-overlay {
+  align-items: center;
+  background: #050505;
+  color: white;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  position: fixed;
+  z-index: 9999;
+}
+
+.cafe-reminder-box {
+  border: 2px solid #d4af37;
+  border-radius: 18px;
+  box-shadow: 0 0 40px rgba(212, 175, 55, 0.28);
+  max-width: 560px;
+  padding: 32px 22px;
+  text-align: center;
+  width: 100%;
+}
+
+.cafe-reminder-box h1 {
+  color: #d4af37;
+  font-size: 30px;
+  margin-bottom: 18px;
+}
+
+.cafe-reminder-box p {
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.25;
+  margin-bottom: 28px;
 }
 
 .p4-alert-card {

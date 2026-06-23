@@ -22,6 +22,8 @@ const tables = [
   "p4_conges",
   "vie_groupe",
   "vie_groupe_dossiers",
+  "vie_groupe_options",
+  "caisse_cafe_rappels",
 ];
 
 const storageBuckets = ["photos-identites"];
