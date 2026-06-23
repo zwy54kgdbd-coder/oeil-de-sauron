@@ -5105,7 +5105,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
     return (
       <div className="home-page">
-        <button className="back-btn" onClick={() => setPage("home")}>
+        <button className="back-btn" onClick={() => setPage("vieGroupe")}>
           ← Retour
         </button>
 
@@ -5416,7 +5416,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
     return (
       <div className="home-page">
-        <button className="back-btn" onClick={() => setPage("home")}>
+        <button className="back-btn" onClick={() => setPage("vieGroupe")}>
           ← Retour
         </button>
 
@@ -5619,9 +5619,6 @@ if (page === "identityDetails" && selectedIdentity) {
   }
 
   if (page === "vieGroupe") {
-    const photosVieGroupe = vieGroupeItems.filter((item) => item.type === "photo");
-    const anecdotesVieGroupe = vieGroupeItems.filter((item) => item.type === "texte");
-
     return (
       <div className="home-page">
         <button className="back-btn" onClick={() => setPage("home")}>
@@ -5629,6 +5626,38 @@ if (page === "identityDetails" && selectedIdentity) {
         </button>
 
         <h2 className="section-title">Vie de groupe</h2>
+
+        <div className="menu-grid">
+          <div className="menu-card" onClick={() => setPage("p4")}>
+            📅
+            <span>P4</span>
+          </div>
+
+          <div className="menu-card" onClick={() => setPage("caisseCafe")}>
+            ☕
+            <span>Caisse café</span>
+          </div>
+
+          <div className="menu-card" onClick={() => setPage("quotidien")}>
+            📸
+            <span>Quotidien</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (page === "quotidien") {
+    const photosVieGroupe = vieGroupeItems.filter((item) => item.type === "photo");
+    const anecdotesVieGroupe = vieGroupeItems.filter((item) => item.type === "texte");
+
+    return (
+      <div className="home-page">
+        <button className="back-btn" onClick={() => setPage("vieGroupe")}>
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Quotidien</h2>
 
         <div className="sector-switch">
           <button
@@ -5948,16 +5977,6 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("favorisBac")}>
           ⭐
           <span>Favoris BAC</span>
-        </div>
-
-        <div className="menu-card" onClick={() => setPage("p4")}>
-          📅
-          <span>P4</span>
-        </div>
-
-        <div className="menu-card" onClick={() => setPage("caisseCafe")}>
-          ☕
-          <span>Caisse café</span>
         </div>
 
         <div className="menu-card" onClick={() => setPage("interpellations")}>
