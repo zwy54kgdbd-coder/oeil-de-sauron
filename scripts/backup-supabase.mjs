@@ -24,6 +24,7 @@ const tables = [
   "vie_groupe_dossiers",
   "vie_groupe_options",
   "caisse_cafe_rappels",
+  "numeros_utiles",
 ];
 
 const storageBuckets = ["photos-identites"];

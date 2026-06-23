@@ -709,7 +709,15 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [vieGroupeDossiers, setVieGroupeDossiers] = useState([]);
   const [vieGroupeOptions, setVieGroupeOptions] = useState([]);
   const [caisseCafeRappels, setCaisseCafeRappels] = useState([]);
+  const [numerosUtiles, setNumerosUtiles] = useState([]);
   const [rappelCafeVu, setRappelCafeVu] = useState(false);
+  const [editingNumeroUtileId, setEditingNumeroUtileId] = useState(null);
+  const [numeroUtileGrade, setNumeroUtileGrade] = useState("");
+  const [numeroUtileNom, setNumeroUtileNom] = useState("");
+  const [numeroUtilePrenom, setNumeroUtilePrenom] = useState("");
+  const [numeroUtileFonction, setNumeroUtileFonction] = useState("");
+  const [numeroUtileNumeros, setNumeroUtileNumeros] = useState([""]);
+  const [numeroUtileObservations, setNumeroUtileObservations] = useState("");
   const [selectedVieGroupeModule, setSelectedVieGroupeModule] = useState(null);
   const [selectedVieGroupeCollegue, setSelectedVieGroupeCollegue] = useState("");
   const [editingVieGroupeDossierId, setEditingVieGroupeDossierId] = useState(null);
@@ -736,6 +744,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
   chargerVieGroupeDossiers();
   chargerVieGroupeOptions();
   chargerCaisseCafeRappels();
+  chargerNumerosUtiles();
 
   const identitesChannel = supabase
     .channel("realtime-identites")
@@ -932,6 +941,21 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     )
     .subscribe();
 
+  const numerosUtilesChannel = supabase
+    .channel("realtime-numeros-utiles")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "numeros_utiles",
+      },
+      () => {
+        chargerNumerosUtiles();
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(identitesChannel);
     supabase.removeChannel(vehiculesChannel);
@@ -946,6 +970,7 @@ const [selectedVehicle, setSelectedVehicle] = useState(null);
     supabase.removeChannel(vieGroupeDossiersChannel);
     supabase.removeChannel(vieGroupeOptionsChannel);
     supabase.removeChannel(caisseCafeRappelsChannel);
+    supabase.removeChannel(numerosUtilesChannel);
   };
 }, [logged]);
 
@@ -1262,6 +1287,22 @@ const chargerCaisseCafeRappels = async () => {
   setCaisseCafeRappels(data || []);
 };
 
+const chargerNumerosUtiles = async () => {
+  const { data, error } = await supabase
+    .from("numeros_utiles")
+    .select("*")
+    .order("nom", { ascending: true })
+    .order("prenom", { ascending: true });
+
+  if (error) {
+    console.log("ERREUR NUMÉROS UTILES :", error);
+    setNumerosUtiles([]);
+    return;
+  }
+
+  setNumerosUtiles(data || []);
+};
+
   const saveUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     localStorage.setItem("users", JSON.stringify(updatedUsers));
@@ -1294,6 +1335,120 @@ const chargerCaisseCafeRappels = async () => {
     }
 
     await chargerJournalModifications();
+  };
+
+  const resetNumeroUtileForm = () => {
+    setEditingNumeroUtileId(null);
+    setNumeroUtileGrade("");
+    setNumeroUtileNom("");
+    setNumeroUtilePrenom("");
+    setNumeroUtileFonction("");
+    setNumeroUtileNumeros([""]);
+    setNumeroUtileObservations("");
+  };
+
+  const modifierNumeroUtile = (item) => {
+    setEditingNumeroUtileId(item.id);
+    setNumeroUtileGrade(item.grade || "");
+    setNumeroUtileNom(item.nom || "");
+    setNumeroUtilePrenom(item.prenom || "");
+    setNumeroUtileFonction(item.fonction || "");
+    setNumeroUtileNumeros(
+      Array.isArray(item.numeros) && item.numeros.length > 0
+        ? item.numeros
+        : [item.numero || ""]
+    );
+    setNumeroUtileObservations(item.observations || "");
+  };
+
+  const changerNumeroUtileNumero = (index, value) => {
+    setNumeroUtileNumeros((items) =>
+      items.map((item, itemIndex) => (itemIndex === index ? value : item))
+    );
+  };
+
+  const ajouterNumeroUtileNumero = () => {
+    setNumeroUtileNumeros((items) => [...items, ""]);
+  };
+
+  const supprimerNumeroUtileNumero = (index) => {
+    setNumeroUtileNumeros((items) =>
+      items.length <= 1 ? [""] : items.filter((_, itemIndex) => itemIndex !== index)
+    );
+  };
+
+  const enregistrerNumeroUtile = async () => {
+    if (!numeroUtileNom.trim() && !numeroUtilePrenom.trim() && !numeroUtileFonction.trim()) {
+      alert("Renseigne au moins un nom, un prénom ou une fonction.");
+      return;
+    }
+
+    const numerosFinal = numeroUtileNumeros.map((item) => item.trim()).filter(Boolean);
+    const payload = {
+      grade: numeroUtileGrade.trim(),
+      nom: numeroUtileNom.trim(),
+      prenom: numeroUtilePrenom.trim(),
+      fonction: numeroUtileFonction.trim(),
+      numero: numerosFinal[0] || "",
+      numeros: numerosFinal,
+      observations: numeroUtileObservations.trim(),
+      updated_by: currentUser?.username || "Inconnu",
+    };
+
+    const result = editingNumeroUtileId
+      ? await supabase
+          .from("numeros_utiles")
+          .update(payload)
+          .eq("id", editingNumeroUtileId)
+      : await supabase.from("numeros_utiles").insert([
+          {
+            ...payload,
+            created_by: currentUser?.username || "Inconnu",
+          },
+        ]);
+
+    if (result.error) {
+      alert("Erreur numéro utile : " + result.error.message);
+      return;
+    }
+
+    await chargerNumerosUtiles();
+    ajouterHistorique(
+      `${editingNumeroUtileId ? "Modification" : "Ajout"} numéro utile : ${payload.grade} ${payload.nom} ${payload.prenom}`.trim(),
+      "numeros_utiles",
+      editingNumeroUtileId
+    );
+    resetNumeroUtileForm();
+  };
+
+  const supprimerNumeroUtile = async (item) => {
+    if (
+      currentUser?.role !== "LE TÔLIER" &&
+      currentUser?.role !== "ADMINISTRATEUR"
+    ) {
+      alert("Seuls le Tôlier et les administrateurs peuvent supprimer.");
+      return;
+    }
+
+    const confirmation = window.confirm("Supprimer ce numéro utile ?");
+    if (!confirmation) return;
+
+    const { error } = await supabase
+      .from("numeros_utiles")
+      .delete()
+      .eq("id", item.id);
+
+    if (error) {
+      alert("Erreur suppression numéro utile : " + error.message);
+      return;
+    }
+
+    await chargerNumerosUtiles();
+    ajouterHistorique(
+      `Suppression numéro utile : ${item.grade || ""} ${item.nom || ""} ${item.prenom || ""}`.trim(),
+      "numeros_utiles",
+      item.id
+    );
   };
 
   const peutGererVieGroupe =
@@ -1527,6 +1682,153 @@ const chargerCaisseCafeRappels = async () => {
     }));
   };
 
+  const getUserPourCollegue = (collegue) =>
+    users.find((user) => normaliserP4(getCollegueDepuisUser(user)) === normaliserP4(collegue));
+
+  const getFicheIndividuelleData = () => {
+    const userCollegue = getUserPourCollegue(selectedVieGroupeCollegue);
+    return {
+      collegue: {
+        grade: vieGroupeDossierForm.collegue?.grade ?? userCollegue?.grade ?? "",
+        nom: vieGroupeDossierForm.collegue?.nom ?? userCollegue?.nom ?? "",
+        prenom: vieGroupeDossierForm.collegue?.prenom ?? userCollegue?.prenom ?? selectedVieGroupeCollegue ?? "",
+        matricule: vieGroupeDossierForm.collegue?.matricule ?? userCollegue?.matricule ?? "",
+        naissance: vieGroupeDossierForm.collegue?.naissance ?? "",
+        lieu_naissance: vieGroupeDossierForm.collegue?.lieu_naissance ?? "",
+        adresse: vieGroupeDossierForm.collegue?.adresse ?? "",
+        telephone: vieGroupeDossierForm.collegue?.telephone ?? "",
+      },
+      medical: {
+        maladies: vieGroupeDossierForm.medical?.maladies ?? vieGroupeDossierForm.maladies ?? "",
+        traitements: vieGroupeDossierForm.medical?.traitements ?? vieGroupeDossierForm.traitements ?? "",
+        allergies: vieGroupeDossierForm.medical?.allergies ?? vieGroupeDossierForm.allergies ?? "",
+        groupe_sanguin: vieGroupeDossierForm.medical?.groupe_sanguin ?? vieGroupeDossierForm.groupe_sanguin ?? "",
+        autre: vieGroupeDossierForm.medical?.autre ?? vieGroupeDossierForm.autre ?? "",
+      },
+      contacts_urgence:
+        Array.isArray(vieGroupeDossierForm.contacts_urgence) &&
+        vieGroupeDossierForm.contacts_urgence.length > 0
+          ? vieGroupeDossierForm.contacts_urgence.map((contact, index) => ({
+              ...contact,
+              id: contact.id || `${Date.now()}-${index}`,
+              telephones:
+                Array.isArray(contact.telephones) && contact.telephones.length > 0
+                  ? contact.telephones
+                  : [contact.telephone || ""],
+            }))
+          : [
+              {
+                id: Date.now(),
+                nom: vieGroupeDossierForm.personne_confiance_nom || "",
+                prenom: vieGroupeDossierForm.personne_confiance_prenom || "",
+                lien: "",
+                telephones: [vieGroupeDossierForm.personne_confiance_telephone || ""],
+              },
+            ],
+    };
+  };
+
+  const changerFicheIndividuelle = (section, field, value) => {
+    setVieGroupeDossierForm((current) => ({
+      ...current,
+      [section]: {
+        ...(current[section] || {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  const changerContactUrgence = (contactId, field, value) => {
+    setVieGroupeDossierForm((current) => {
+      const data = getFicheIndividuelleData();
+      return {
+        ...current,
+        contacts_urgence: data.contacts_urgence.map((contact) =>
+          contact.id === contactId ? { ...contact, [field]: value } : contact
+        ),
+      };
+    });
+  };
+
+  const changerTelephoneContactUrgence = (contactId, phoneIndex, value) => {
+    setVieGroupeDossierForm((current) => {
+      const data = getFicheIndividuelleData();
+      return {
+        ...current,
+        contacts_urgence: data.contacts_urgence.map((contact) =>
+          contact.id === contactId
+            ? {
+                ...contact,
+                telephones: (contact.telephones || [""]).map((phone, index) =>
+                  index === phoneIndex ? value : phone
+                ),
+              }
+            : contact
+        ),
+      };
+    });
+  };
+
+  const ajouterContactUrgence = () => {
+    setVieGroupeDossierForm((current) => {
+      const data = getFicheIndividuelleData();
+      return {
+        ...current,
+        contacts_urgence: [
+          ...data.contacts_urgence,
+          { id: Date.now(), nom: "", prenom: "", lien: "", telephones: [""] },
+        ],
+      };
+    });
+  };
+
+  const supprimerContactUrgence = (contactId) => {
+    setVieGroupeDossierForm((current) => {
+      const data = getFicheIndividuelleData();
+      return {
+        ...current,
+        contacts_urgence:
+          data.contacts_urgence.length <= 1
+            ? [{ id: Date.now(), nom: "", prenom: "", lien: "", telephones: [""] }]
+            : data.contacts_urgence.filter((contact) => contact.id !== contactId),
+      };
+    });
+  };
+
+  const ajouterTelephoneContactUrgence = (contactId) => {
+    setVieGroupeDossierForm((current) => {
+      const data = getFicheIndividuelleData();
+      return {
+        ...current,
+        contacts_urgence: data.contacts_urgence.map((contact) =>
+          contact.id === contactId
+            ? { ...contact, telephones: [...(contact.telephones || []), ""] }
+            : contact
+        ),
+      };
+    });
+  };
+
+  const supprimerTelephoneContactUrgence = (contactId, phoneIndex) => {
+    setVieGroupeDossierForm((current) => {
+      const data = getFicheIndividuelleData();
+      return {
+        ...current,
+        contacts_urgence: data.contacts_urgence.map((contact) =>
+          contact.id === contactId
+            ? {
+                ...contact,
+                telephones:
+                  (contact.telephones || []).length <= 1
+                    ? [""]
+                    : contact.telephones.filter((_, index) => index !== phoneIndex),
+              }
+            : contact
+        ),
+      };
+    });
+  };
+
   const getOptionsVieGroupeModule = (moduleKey) =>
     vieGroupeOptions.filter((item) => item.module_key === moduleKey);
 
@@ -1644,18 +1946,22 @@ const chargerCaisseCafeRappels = async () => {
       return;
     }
 
+    const ficheIndividuelleData =
+      selectedVieGroupeModule === "ficheIndividuelle"
+        ? getFicheIndividuelleData()
+        : null;
     const optionSelectionnee = vieGroupeOptions.find(
       (option) => String(option.id) === String(vieGroupeDossierForm.element_id)
     );
     const dateReference =
       vieGroupeDossierForm.date_obtention || toDateInputValue(new Date());
-    const dataFinale = {
-      ...vieGroupeDossierForm,
-      element_nom: optionSelectionnee?.nom || vieGroupeDossierForm.element_nom || "",
-      echeance: optionSelectionnee
-        ? calculerEcheanceVieGroupe(optionSelectionnee, dateReference)
-        : vieGroupeDossierForm.echeance || "",
-    };
+    const dataFinale = ficheIndividuelleData || {
+        ...vieGroupeDossierForm,
+        element_nom: optionSelectionnee?.nom || vieGroupeDossierForm.element_nom || "",
+        echeance: optionSelectionnee
+          ? calculerEcheanceVieGroupe(optionSelectionnee, dateReference)
+          : vieGroupeDossierForm.echeance || "",
+      };
 
     const payload = {
       type: module.tableType,
@@ -6338,6 +6644,139 @@ if (page === "identityDetails" && selectedIdentity) {
     );
   }
 
+  if (page === "numerosUtiles") {
+    const peutSupprimerNumeroUtile =
+      currentUser?.role === "LE TÔLIER" ||
+      currentUser?.role === "ADMINISTRATEUR";
+
+    return (
+      <div className="home-page">
+        <button
+          className="back-btn"
+          onClick={() => {
+            resetNumeroUtileForm();
+            setPage("home");
+          }}
+        >
+          ← Retour
+        </button>
+
+        <h2 className="section-title">Numéros utiles</h2>
+
+        <div className="admin-card">
+          <h3>{editingNumeroUtileId ? "Modifier" : "Ajouter"}</h3>
+
+          <input
+            type="text"
+            placeholder="Grade"
+            value={numeroUtileGrade}
+            onChange={(e) => setNumeroUtileGrade(e.target.value)}
+          />
+
+          <input
+            type="text"
+            placeholder="Nom"
+            value={numeroUtileNom}
+            onChange={(e) => setNumeroUtileNom(e.target.value)}
+          />
+
+          <input
+            type="text"
+            placeholder="Prénom"
+            value={numeroUtilePrenom}
+            onChange={(e) => setNumeroUtilePrenom(e.target.value)}
+          />
+
+          <input
+            type="text"
+            placeholder="Fonction"
+            value={numeroUtileFonction}
+            onChange={(e) => setNumeroUtileFonction(e.target.value)}
+          />
+
+          {numeroUtileNumeros.map((numero, index) => (
+            <div className="form-row" key={index}>
+              <input
+                type="tel"
+                placeholder={`Numéro ${index + 1}`}
+                value={numero}
+                onChange={(e) => changerNumeroUtileNumero(index, e.target.value)}
+              />
+              <button
+                className="delete-btn"
+                type="button"
+                onClick={() => supprimerNumeroUtileNumero(index)}
+              >
+                Supprimer
+              </button>
+            </div>
+          ))}
+
+          <button className="cancel-btn" onClick={ajouterNumeroUtileNumero}>
+            Ajouter un numéro
+          </button>
+
+          <textarea
+            placeholder="Observations"
+            value={numeroUtileObservations}
+            onChange={(e) => setNumeroUtileObservations(e.target.value)}
+          />
+
+          <button className="admin-main-btn" onClick={enregistrerNumeroUtile}>
+            {editingNumeroUtileId ? "Enregistrer modification" : "Ajouter"}
+          </button>
+
+          {editingNumeroUtileId && (
+            <button className="cancel-btn" onClick={resetNumeroUtileForm}>
+              Annuler modification
+            </button>
+          )}
+        </div>
+
+        <div className="results-list">
+          {numerosUtiles.length === 0 && (
+            <div className="admin-card">Aucun numéro utile enregistré.</div>
+          )}
+
+          {numerosUtiles.map((item) => {
+            const numeros = Array.isArray(item.numeros) && item.numeros.length > 0
+              ? item.numeros
+              : [item.numero].filter(Boolean);
+
+            return (
+              <div className="person-card" key={item.id}>
+                <div className="avatar">☎️</div>
+
+                <div className="person-info">
+                  <div className="person-name">
+                    {[item.grade, item.nom, item.prenom].filter(Boolean).join(" ")}
+                  </div>
+                  {item.fonction && <div>Fonction : {item.fonction}</div>}
+                  {numeros.map((numero, index) => (
+                    <div key={`${item.id}-${index}`}>Numéro {index + 1} : {numero}</div>
+                  ))}
+                  {item.observations && <div>Observations : {item.observations}</div>}
+
+                  <div className="person-actions">
+                    <button className="edit-btn" onClick={() => modifierNumeroUtile(item)}>
+                      Modifier
+                    </button>
+
+                    {peutSupprimerNumeroUtile && (
+                      <button className="delete-btn" onClick={() => supprimerNumeroUtile(item)}>
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   if (page === "vieGroupe") {
     return (
       <div className="home-page">
@@ -6431,6 +6870,10 @@ if (page === "identityDetails" && selectedIdentity) {
     const peutAjouterDossier =
       peutGererVieGroupeDossiers ||
       selectedVieGroupeCollegue === collegueP4Utilisateur;
+    const ficheIndividuelleData =
+      selectedVieGroupeModule === "ficheIndividuelle"
+        ? getFicheIndividuelleData()
+        : null;
 
     if (!module) {
       setPage("vieGroupe");
@@ -6542,7 +6985,152 @@ if (page === "identityDetails" && selectedIdentity) {
           <div className="admin-card">
             <h3>{editingVieGroupeDossierId ? "Modifier" : "Ajouter"}</h3>
 
-            {moduleAvecOptions && (
+            {selectedVieGroupeModule === "ficheIndividuelle" && ficheIndividuelleData ? (
+              <>
+                <h3>Identité du collègue</h3>
+                <input
+                  type="text"
+                  placeholder="Grade"
+                  value={ficheIndividuelleData.collegue.grade}
+                  onChange={(e) => changerFicheIndividuelle("collegue", "grade", e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Nom"
+                  value={ficheIndividuelleData.collegue.nom}
+                  onChange={(e) => changerFicheIndividuelle("collegue", "nom", e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Prénom"
+                  value={ficheIndividuelleData.collegue.prenom}
+                  onChange={(e) => changerFicheIndividuelle("collegue", "prenom", e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Matricule"
+                  value={ficheIndividuelleData.collegue.matricule}
+                  onChange={(e) => changerFicheIndividuelle("collegue", "matricule", e.target.value)}
+                />
+                <div className="date-field">
+                  <span>Date de naissance</span>
+                  <input
+                    type="date"
+                    value={ficheIndividuelleData.collegue.naissance}
+                    onChange={(e) => changerFicheIndividuelle("collegue", "naissance", e.target.value)}
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Lieu de naissance"
+                  value={ficheIndividuelleData.collegue.lieu_naissance}
+                  onChange={(e) => changerFicheIndividuelle("collegue", "lieu_naissance", e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Adresse"
+                  value={ficheIndividuelleData.collegue.adresse}
+                  onChange={(e) => changerFicheIndividuelle("collegue", "adresse", e.target.value)}
+                />
+                <input
+                  type="tel"
+                  placeholder="Numéro de téléphone"
+                  value={ficheIndividuelleData.collegue.telephone}
+                  onChange={(e) => changerFicheIndividuelle("collegue", "telephone", e.target.value)}
+                />
+
+                <h3>Santé / observations</h3>
+                <textarea
+                  placeholder="Maladie(s)"
+                  value={ficheIndividuelleData.medical.maladies}
+                  onChange={(e) => changerFicheIndividuelle("medical", "maladies", e.target.value)}
+                />
+                <textarea
+                  placeholder="Traitement(s)"
+                  value={ficheIndividuelleData.medical.traitements}
+                  onChange={(e) => changerFicheIndividuelle("medical", "traitements", e.target.value)}
+                />
+                <textarea
+                  placeholder="Allergie(s)"
+                  value={ficheIndividuelleData.medical.allergies}
+                  onChange={(e) => changerFicheIndividuelle("medical", "allergies", e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Groupe sanguin"
+                  value={ficheIndividuelleData.medical.groupe_sanguin}
+                  onChange={(e) => changerFicheIndividuelle("medical", "groupe_sanguin", e.target.value)}
+                />
+                <textarea
+                  placeholder="Autre"
+                  value={ficheIndividuelleData.medical.autre}
+                  onChange={(e) => changerFicheIndividuelle("medical", "autre", e.target.value)}
+                />
+
+                <h3>Personnes à prévenir</h3>
+                {ficheIndividuelleData.contacts_urgence.map((contact, contactIndex) => (
+                  <div className="emergency-contact-card" key={contact.id || contactIndex}>
+                    <input
+                      type="text"
+                      placeholder="Nom"
+                      value={contact.nom || ""}
+                      onChange={(e) => changerContactUrgence(contact.id, "nom", e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Prénom"
+                      value={contact.prenom || ""}
+                      onChange={(e) => changerContactUrgence(contact.id, "prenom", e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Lien avec le collègue"
+                      value={contact.lien || ""}
+                      onChange={(e) => changerContactUrgence(contact.id, "lien", e.target.value)}
+                    />
+
+                    {(contact.telephones || [""]).map((telephoneContact, phoneIndex) => (
+                      <div className="form-row" key={`${contact.id}-${phoneIndex}`}>
+                        <input
+                          type="tel"
+                          placeholder={`Téléphone ${phoneIndex + 1}`}
+                          value={telephoneContact}
+                          onChange={(e) =>
+                            changerTelephoneContactUrgence(contact.id, phoneIndex, e.target.value)
+                          }
+                        />
+                        <button
+                          className="delete-btn"
+                          type="button"
+                          onClick={() => supprimerTelephoneContactUrgence(contact.id, phoneIndex)}
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    ))}
+
+                    <button
+                      className="cancel-btn"
+                      type="button"
+                      onClick={() => ajouterTelephoneContactUrgence(contact.id)}
+                    >
+                      Ajouter un numéro
+                    </button>
+                    <button
+                      className="delete-btn"
+                      type="button"
+                      onClick={() => supprimerContactUrgence(contact.id)}
+                    >
+                      Supprimer cette personne
+                    </button>
+                  </div>
+                ))}
+
+                <button className="cancel-btn" type="button" onClick={ajouterContactUrgence}>
+                  Ajouter une personne à prévenir
+                </button>
+              </>
+            ) : moduleAvecOptions && (
               <>
                 <select
                   className="role-select"
@@ -6568,7 +7156,7 @@ if (page === "identityDetails" && selectedIdentity) {
               </>
             )}
 
-            {champsFormulaire.map(([field, label]) => (
+            {selectedVieGroupeModule !== "ficheIndividuelle" && champsFormulaire.map(([field, label]) => (
               field.includes("date") ? (
                 <div className="date-field" key={field}>
                   <span>{label}</span>
@@ -6613,6 +7201,50 @@ if (page === "identityDetails" && selectedIdentity) {
                 Ajouté par : {item.created_by || "Inconnu"} - {formatDateFr(item.created_at)}
               </div>
 
+              {selectedVieGroupeModule === "ficheIndividuelle" && item.data?.collegue && (
+                <div className="vie-groupe-dossier-field">
+                  <strong>Identité du collègue</strong>
+                  <div>
+                    {[item.data.collegue.grade, item.data.collegue.nom, item.data.collegue.prenom]
+                      .filter(Boolean)
+                      .join(" ")}
+                  </div>
+                  {item.data.collegue.matricule && <div>Matricule : {item.data.collegue.matricule}</div>}
+                  {item.data.collegue.naissance && <div>Date de naissance : {formatDateFr(item.data.collegue.naissance)}</div>}
+                  {item.data.collegue.lieu_naissance && <div>Lieu de naissance : {item.data.collegue.lieu_naissance}</div>}
+                  {item.data.collegue.adresse && <div>Adresse : {item.data.collegue.adresse}</div>}
+                  {item.data.collegue.telephone && <div>Téléphone : {item.data.collegue.telephone}</div>}
+                </div>
+              )}
+
+              {selectedVieGroupeModule === "ficheIndividuelle" && item.data?.medical && (
+                <div className="vie-groupe-dossier-field">
+                  <strong>Santé / observations</strong>
+                  {item.data.medical.maladies && <div>Maladie(s) : {item.data.medical.maladies}</div>}
+                  {item.data.medical.traitements && <div>Traitement(s) : {item.data.medical.traitements}</div>}
+                  {item.data.medical.allergies && <div>Allergie(s) : {item.data.medical.allergies}</div>}
+                  {item.data.medical.groupe_sanguin && <div>Groupe sanguin : {item.data.medical.groupe_sanguin}</div>}
+                  {item.data.medical.autre && <div>Autre : {item.data.medical.autre}</div>}
+                </div>
+              )}
+
+              {selectedVieGroupeModule === "ficheIndividuelle" &&
+                Array.isArray(item.data?.contacts_urgence) &&
+                item.data.contacts_urgence.map((contact, index) => (
+                  <div className="vie-groupe-dossier-field" key={`${item.id}-contact-${index}`}>
+                    <strong>Personne à prévenir {index + 1}</strong>
+                    <div>
+                      {[contact.nom, contact.prenom].filter(Boolean).join(" ") || "Non renseignée"}
+                    </div>
+                    {contact.lien && <div>Lien : {contact.lien}</div>}
+                    {(contact.telephones || []).filter(Boolean).map((telephoneContact, phoneIndex) => (
+                      <div key={`${item.id}-contact-${index}-${phoneIndex}`}>
+                        Téléphone {phoneIndex + 1} : {telephoneContact}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+
               {item.data?.element_nom && (
                 <div className="vie-groupe-dossier-field">
                   <strong>{VIE_GROUPE_OPTION_LABELS[selectedVieGroupeModule]}</strong>
@@ -6634,7 +7266,7 @@ if (page === "identityDetails" && selectedIdentity) {
                 </div>
               )}
 
-              {fields.map(([field, label]) =>
+              {selectedVieGroupeModule !== "ficheIndividuelle" && fields.map(([field, label]) =>
                 item.data?.[field] && !["element_id", "element_nom", "date_obtention", "echeance"].includes(field) ? (
                   <div className="vie-groupe-dossier-field" key={field}>
                     <strong>{label}</strong>
@@ -7092,6 +7724,11 @@ if (page === "identityDetails" && selectedIdentity) {
         <div className="menu-card" onClick={() => setPage("interpellations")}>
           🚓
           <span>Interpellations</span>
+        </div>
+
+        <div className="menu-card" onClick={() => setPage("numerosUtiles")}>
+          ☎️
+          <span>Numéros utiles</span>
         </div>
 
         <div className="menu-card" onClick={() => setPage("vieGroupe")}>

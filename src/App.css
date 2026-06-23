@@ -476,6 +476,14 @@ button {
   gap: 10px;
 }
 
+.emergency-contact-card {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(212, 175, 55, 0.24);
+  border-radius: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
 .vie-groupe-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
