@@ -1,5 +1,5 @@
 import "./App.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as faceapi from "@vladmandic/face-api";
 import { supabase } from "./supabase";
 
@@ -655,6 +655,10 @@ const chargerUtilisateurs = async () => {
 const [vehiculePhoto, setVehiculePhoto] = useState("");
 const [vehiculePhotos, setVehiculePhotos] = useState([]);
 const [vehiculePhotoPrincipaleIndex, setVehiculePhotoPrincipaleIndex] = useState(0);
+const [vehiculeSaving, setVehiculeSaving] = useState(false);
+const [vehiculePhotoUploading, setVehiculePhotoUploading] = useState(false);
+const [vehiculePhotoUploadError, setVehiculePhotoUploadError] = useState("");
+const vehiculeSavingRef = useRef(false);
   const [nouvelleIdentiteNom, setNouvelleIdentiteNom] = useState("");
   const [nouvelleIdentitePrenom, setNouvelleIdentitePrenom] = useState("");
   const [nouvelleIdentiteAlias, setNouvelleIdentiteAlias] = useState("");
@@ -698,6 +702,10 @@ const [telephone, setTelephone] = useState("");
   const [photo, setPhoto] = useState("");
   const [photos, setPhotos] = useState([]);
   const [photoPrincipaleIndex, setPhotoPrincipaleIndex] = useState(0);
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [identityPhotoUploading, setIdentityPhotoUploading] = useState(false);
+  const [identityPhotoUploadError, setIdentityPhotoUploadError] = useState("");
+  const identitySavingRef = useRef(false);
   const [photoZoom, setPhotoZoom] = useState("");
   const [selectedIdentity, setSelectedIdentity] = useState(null);
   const [identityDetailsReturnPage, setIdentityDetailsReturnPage] = useState("individus");
@@ -3537,6 +3545,10 @@ setTelephone("");
     setPhoto("");
     setPhotos([]);
     setPhotoPrincipaleIndex(0);
+    setIdentitySaving(false);
+    identitySavingRef.current = false;
+    setIdentityPhotoUploading(false);
+    setIdentityPhotoUploadError("");
     setFaitsIdentiteEnCreation([]);
     setNouveauFaitDate("");
     setNouveauFaitDescription("");
@@ -3575,8 +3587,20 @@ setTelephone("");
   };
 
   const enregistrerIdentite = async () => {
+  if (identitySavingRef.current) return;
+
   if (!nom && !prenom && !alias) {
     alert("Renseigne au moins un nom, un prénom ou un alias.");
+    return;
+  }
+
+  if (identityPhotoUploading) {
+    alert("Patiente, la photo est encore en cours d'envoi.");
+    return;
+  }
+
+  if (identityPhotoUploadError && photos.length === 0 && !photo) {
+    alert("La photo n'a pas été enregistrée. Reprends ou recharge la photo avant d'enregistrer la fiche.");
     return;
   }
 
@@ -3590,6 +3614,9 @@ setTelephone("");
     if (!continuer) return;
     setDuplicateIdentityWarningKey(doublonIdentite.key);
   }
+
+  identitySavingRef.current = true;
+  setIdentitySaving(true);
 
   const photoPrincipale = photos[photoPrincipaleIndex] || photo || "";
   const photosUniques = uniquePhotos([photoPrincipale, ...photos]);
@@ -3611,83 +3638,88 @@ telephone,
 	photo_principale_index: photoPrincipale ? 0 : photoPrincipaleIndex,
   };
 
-  let result;
+  try {
+    let result;
 
-  if (editingId) {
-    result = await supabase
-      .from("identites")
-      .update(fiche)
-      .eq("id", editingId)
-      .select();
-  } else {
-    result = await supabase
-      .from("identites")
-      .insert([fiche])
-      .select();
-  }
+    if (editingId) {
+      result = await supabase
+        .from("identites")
+        .update(fiche)
+        .eq("id", editingId)
+        .select();
+    } else {
+      result = await supabase
+        .from("identites")
+        .insert([fiche])
+        .select();
+    }
 
-  if (result.error) {
-    console.log("ERREUR ENREGISTREMENT IDENTITÉ :", result.error);
-    alert("Erreur lors de l'enregistrement dans Supabase.");
-    return;
-  }
-
-  await chargerIdentites();
-
-  const identiteEnregistree = result.data?.[0];
-  const identiteId = editingId || identiteEnregistree?.id;
-  const libelleIdentite = getLibelleIdentite({
-    nom,
-    prenom,
-    alias,
-  });
-
-  ajouterHistorique(
-    editingId
-      ? `Modification identité : ${libelleIdentite}`
-      : `Création identité : ${libelleIdentite}`,
-    "identite",
-    identiteId
-  );
-
-  if (!editingId && identiteId && faitsIdentiteEnCreation.length > 0) {
-    const { error: faitsError } = await supabase.from("faits_identites").insert(
-      faitsIdentiteEnCreation.map((item) => ({
-        identite_id: identiteId,
-        date_fait: item.date_fait,
-        description: item.description,
-        created_by: item.created_by || currentUser?.username || "",
-      }))
-    );
-
-    if (faitsError) {
-      alert("Identité enregistrée, mais erreur ajout historique des faits : " + faitsError.message);
+    if (result.error) {
+      console.log("ERREUR ENREGISTREMENT IDENTITÉ :", result.error);
+      alert("Erreur lors de l'enregistrement dans Supabase.");
       return;
     }
 
-    await chargerFaitsIdentites();
-  }
+    await chargerIdentites();
 
-  if (retourIdentiteInterpellation) {
-    setInterpellationAuteurs((auteurs) => [
-      ...new Set([...auteurs, libelleIdentite]),
-    ]);
-    setRetourIdentiteInterpellation(false);
+    const identiteEnregistree = result.data?.[0];
+    const identiteId = editingId || identiteEnregistree?.id;
+    const libelleIdentite = getLibelleIdentite({
+      nom,
+      prenom,
+      alias,
+    });
+
+    ajouterHistorique(
+      editingId
+        ? `Modification identité : ${libelleIdentite}`
+        : `Création identité : ${libelleIdentite}`,
+      "identite",
+      identiteId
+    );
+
+    if (!editingId && identiteId && faitsIdentiteEnCreation.length > 0) {
+      const { error: faitsError } = await supabase.from("faits_identites").insert(
+        faitsIdentiteEnCreation.map((item) => ({
+          identite_id: identiteId,
+          date_fait: item.date_fait,
+          description: item.description,
+          created_by: item.created_by || currentUser?.username || "",
+        }))
+      );
+
+      if (faitsError) {
+        alert("Identité enregistrée, mais erreur ajout historique des faits : " + faitsError.message);
+        return;
+      }
+
+      await chargerFaitsIdentites();
+    }
+
+    if (retourIdentiteInterpellation) {
+      setInterpellationAuteurs((auteurs) => [
+        ...new Set([...auteurs, libelleIdentite]),
+      ]);
+      setRetourIdentiteInterpellation(false);
+      resetIdentityForm();
+      setPage("interpellations");
+      return;
+    }
+
+    if (retourIdentiteCamp) {
+      setCampIdentiteId(identiteId ? String(identiteId) : "");
+      setRetourIdentiteCamp(false);
+      resetIdentityForm();
+      setPage("camps");
+      return;
+    }
+
     resetIdentityForm();
-    setPage("interpellations");
-    return;
+    setPage("individus");
+  } finally {
+    identitySavingRef.current = false;
+    setIdentitySaving(false);
   }
-
-  if (retourIdentiteCamp) {
-    setCampIdentiteId(identiteId ? String(identiteId) : "");
-    setRetourIdentiteCamp(false);
-    resetIdentityForm();
-    setPage("camps");
-    return;
-  }
-
-  resetIdentityForm();
-  setPage("individus");
 };
 
   const modifierIdentite = (person) => {
@@ -3780,6 +3812,10 @@ setNouvelleIdentiteTelephone("");
     setVehiculePhoto("");
 setVehiculePhotos([]);
 setVehiculePhotoPrincipaleIndex(0);
+setVehiculeSaving(false);
+vehiculeSavingRef.current = false;
+setVehiculePhotoUploading(false);
+setVehiculePhotoUploadError("");
     resetNouvelleIdentiteDepuisVehicule();
   };
 
@@ -3820,8 +3856,20 @@ setVehiculePhotoPrincipaleIndex(0);
   };
 
   const enregistrerVehicule = async () => {
+  if (vehiculeSavingRef.current) return;
+
   if (!vehiculePlaque && !vehiculeMarque && !vehiculeModele) {
     alert("Renseigne au moins une plaque, une marque ou un modèle.");
+    return;
+  }
+
+  if (vehiculePhotoUploading) {
+    alert("Patiente, la photo du véhicule est encore en cours d'envoi.");
+    return;
+  }
+
+  if (vehiculePhotoUploadError && vehiculePhotos.length === 0 && !vehiculePhoto) {
+    alert("La photo du véhicule n'a pas été enregistrée. Reprends ou recharge la photo avant d'enregistrer.");
     return;
   }
 
@@ -3836,6 +3884,10 @@ setVehiculePhotoPrincipaleIndex(0);
     setDuplicateVehiculeWarningKey(doublonVehicule.key);
   }
 
+  vehiculeSavingRef.current = true;
+  setVehiculeSaving(true);
+
+  try {
   let finalIndividuId = vehiculeIndividuId;
 
   if (vehiculeIndividuId === CREATE_NEW_IDENTITY) {
@@ -3934,6 +3986,10 @@ photo_principale_index: vehiculePhotoPrincipaleIndex,
 
   resetVehiculeForm();
   setPage("vehicules");
+  } finally {
+    vehiculeSavingRef.current = false;
+    setVehiculeSaving(false);
+  }
 };
 
   const modifierVehicule = (item) => {
@@ -3984,89 +4040,105 @@ setVehiculePhotoPrincipaleIndex(item.photo_principale_index || 0);
 
   if (files.length === 0) return;
 
-  for (const file of files) {
-    const extension = file.name.split(".").pop() || "jpg";
+  setIdentityPhotoUploading(true);
+  setIdentityPhotoUploadError("");
 
-    const fileName = `identites/${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2)}.${extension}`;
+  try {
+    for (const file of files) {
+      const extension = file.name.split(".").pop() || "jpg";
 
-    const { error } = await supabase.storage
-      .from("photos-identites")
-      .upload(fileName, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+      const fileName = `identites/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`;
 
-    if (error) {
-      console.log("ERREUR UPLOAD PHOTO :", error);
-      alert("Erreur upload photo : " + error.message);
-      continue;
-    }
+      const { error } = await supabase.storage
+        .from("photos-identites")
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type || "image/jpeg",
+        });
 
-    const { data } = supabase.storage
-      .from("photos-identites")
-      .getPublicUrl(fileName);
-
-    const nouvellePhoto = data.publicUrl;
-
-    setPhotos((anciennesPhotos) => {
-      const updatedPhotos = [...anciennesPhotos, nouvellePhoto];
-
-      if (anciennesPhotos.length === 0) {
-        setPhotoPrincipaleIndex(0);
-        setPhoto(nouvellePhoto);
+      if (error) {
+        console.log("ERREUR UPLOAD PHOTO :", error);
+        setIdentityPhotoUploadError(error.message);
+        alert("Erreur upload photo : " + error.message);
+        continue;
       }
 
-      return updatedPhotos;
-    });
-  }
+      const { data } = supabase.storage
+        .from("photos-identites")
+        .getPublicUrl(fileName);
 
-  e.target.value = "";
+      const nouvellePhoto = data.publicUrl;
+
+      setPhotos((anciennesPhotos) => {
+        const updatedPhotos = [...anciennesPhotos, nouvellePhoto];
+
+        if (anciennesPhotos.length === 0) {
+          setPhotoPrincipaleIndex(0);
+          setPhoto(nouvellePhoto);
+        }
+
+        return updatedPhotos;
+      });
+    }
+  } finally {
+    setIdentityPhotoUploading(false);
+    e.target.value = "";
+  }
 };
 const handleVehiculePhoto = async (e) => {
   const files = Array.from(e.target.files || []);
 
   if (files.length === 0) return;
 
-  for (const file of files) {
-    const extension = file.name.split(".").pop() || "jpg";
+  setVehiculePhotoUploading(true);
+  setVehiculePhotoUploadError("");
 
-    const fileName = `vehicules/${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2)}.${extension}`;
+  try {
+    for (const file of files) {
+      const extension = file.name.split(".").pop() || "jpg";
 
-    const { error } = await supabase.storage
-      .from("photos-identites")
-      .upload(fileName, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+      const fileName = `vehicules/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`;
 
-    if (error) {
-      alert("Erreur upload photo véhicule : " + error.message);
-      continue;
-    }
+      const { error } = await supabase.storage
+        .from("photos-identites")
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type || "image/jpeg",
+        });
 
-    const { data } = supabase.storage
-      .from("photos-identites")
-      .getPublicUrl(fileName);
-
-    const nouvellePhoto = data.publicUrl;
-
-    setVehiculePhotos((anciennesPhotos) => {
-      const updatedPhotos = [...anciennesPhotos, nouvellePhoto];
-
-      if (anciennesPhotos.length === 0) {
-        setVehiculePhotoPrincipaleIndex(0);
-        setVehiculePhoto(nouvellePhoto);
+      if (error) {
+        setVehiculePhotoUploadError(error.message);
+        alert("Erreur upload photo véhicule : " + error.message);
+        continue;
       }
 
-      return updatedPhotos;
-    });
-  }
+      const { data } = supabase.storage
+        .from("photos-identites")
+        .getPublicUrl(fileName);
 
-  e.target.value = "";
+      const nouvellePhoto = data.publicUrl;
+
+      setVehiculePhotos((anciennesPhotos) => {
+        const updatedPhotos = [...anciennesPhotos, nouvellePhoto];
+
+        if (anciennesPhotos.length === 0) {
+          setVehiculePhotoPrincipaleIndex(0);
+          setVehiculePhoto(nouvellePhoto);
+        }
+
+        return updatedPhotos;
+      });
+    }
+  } finally {
+    setVehiculePhotoUploading(false);
+    e.target.value = "";
+  }
 };
   const definirPhotoPrincipale = (index) => {
     setPhotoPrincipaleIndex(index);
@@ -5479,8 +5551,27 @@ if (page === "identityDetails" && selectedIdentity) {
     />
   </label>
 </div>
-          <button className="save-btn" onClick={enregistrerVehicule}>
-            {editingVehiculeId ? "Modifier" : "Enregistrer"}
+          {vehiculePhotoUploading && (
+            <div className="person-alias">Photo véhicule en cours d'envoi...</div>
+          )}
+          {vehiculePhotoUploadError && (
+            <div className="important-amount">
+              Photo véhicule non enregistrée : {vehiculePhotoUploadError}
+            </div>
+          )}
+
+          <button
+            className="save-btn"
+            onClick={enregistrerVehicule}
+            disabled={vehiculeSaving || vehiculePhotoUploading}
+          >
+            {vehiculePhotoUploading
+              ? "Photo en cours..."
+              : vehiculeSaving
+                ? "Enregistrement..."
+                : editingVehiculeId
+                  ? "Modifier"
+                  : "Enregistrer"}
           </button>
         </div>
       </div>
@@ -5819,6 +5910,15 @@ if (page === "identityDetails" && selectedIdentity) {
             </label>
           </div>
 
+          {identityPhotoUploading && (
+            <div className="person-alias">Photo en cours d'envoi...</div>
+          )}
+          {identityPhotoUploadError && (
+            <div className="important-amount">
+              Photo non enregistrée : {identityPhotoUploadError}
+            </div>
+          )}
+
           {retourIdentiteInterpellation && (
             <button
               className="edit-btn"
@@ -5829,8 +5929,18 @@ if (page === "identityDetails" && selectedIdentity) {
             </button>
           )}
 
-          <button className="save-btn" onClick={enregistrerIdentite}>
-            {editingId ? "Modifier" : "Enregistrer"}
+          <button
+            className="save-btn"
+            onClick={enregistrerIdentite}
+            disabled={identitySaving || identityPhotoUploading}
+          >
+            {identityPhotoUploading
+              ? "Photo en cours..."
+              : identitySaving
+                ? "Enregistrement..."
+                : editingId
+                  ? "Modifier"
+                  : "Enregistrer"}
           </button>
         </div>
         <PhotoZoomOverlay
