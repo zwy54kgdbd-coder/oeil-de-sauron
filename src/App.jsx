@@ -3111,10 +3111,12 @@ const chargerCamps = async () => {
     const soldeExistant = caisseCafeSoldes.find(
       (item) => item.collegue === soldeCafeCollegue
     );
+    const ancienSolde = Number(soldeExistant?.solde || 0);
+    const nouveauSolde = ancienSolde + montant;
 
     const payload = {
       collegue: soldeCafeCollegue,
-      solde: montant,
+      solde: nouveauSolde,
       updated_by: currentUser?.username || "Inconnu",
     };
 
@@ -3133,7 +3135,7 @@ const chargerCamps = async () => {
     setSoldeCafeMontant("");
     await chargerCaisseCafeSoldes();
     ajouterHistorique(
-      `Modification solde caisse café : ${soldeCafeCollegue} — ${formatMontantEuro(montant)}`,
+      `Ajout solde caisse café : ${soldeCafeCollegue} — ${formatMontantEuro(montant)} ajouté, nouveau solde ${formatMontantEuro(nouveauSolde)}`,
       "caisse_cafe_solde"
     );
   };
@@ -7231,7 +7233,7 @@ if (page === "identityDetails" && selectedIdentity) {
 
         {peutGererCaisseCafe && (
           <div className="admin-card">
-            <h3>Modifier un solde positif</h3>
+            <h3>Ajouter au solde positif</h3>
 
             <select
               className="role-select"
@@ -7249,13 +7251,13 @@ if (page === "identityDetails" && selectedIdentity) {
               type="number"
               min="0"
               step="0.01"
-              placeholder="Solde positif"
+              placeholder="Montant à ajouter"
               value={soldeCafeMontant}
               onChange={(e) => setSoldeCafeMontant(e.target.value)}
             />
 
             <button className="admin-main-btn" onClick={modifierSoldeCaisseCafe}>
-              Modifier le solde
+              Ajouter au solde
             </button>
 
             <h3>Ajouter un produit</h3>
